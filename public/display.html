@@ -96,6 +96,19 @@
   }
   #upnext.hidden { display: none; }
 
+  /* ---- Light mode (for outdoor daylight) ---- */
+  body.light { background: #fff; color: #000; }
+  body.light #kicker { color: #555; }
+  body.light #idle-sub { color: #555; }
+  body.light #upnext { background: #f0f0f0; border-top-color: #ccc; }
+  body.light #upnext .un-title { color: #666; }
+  body.light #upnext li { color: #333; border-top-color: #ddd; }
+  body.light #upnext li:first-child { color: #000; }
+  body.light #upnext li .num { color: #888; }
+  body.light #upnext .more { color: #666; }
+  body.light #status { background: rgba(0,0,0,.08); color: #444; }
+  body.light #hint { color: rgba(0,0,0,.45); }
+
   #status {
     position: fixed;
     top: max(10px, env(safe-area-inset-top));
@@ -181,6 +194,11 @@
   function render() {
     if (!state) return;
     document.title = state.title + ' — Display';
+
+    const light = state.theme === 'light';
+    document.body.classList.toggle('light', light);
+    const themeMeta = document.querySelector('meta[name=theme-color]');
+    if (themeMeta) themeMeta.content = light ? '#ffffff' : '#000000';
 
     if (state.current) {
       kickerEl.textContent = 'Now arriving';

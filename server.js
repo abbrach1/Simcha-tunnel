@@ -30,6 +30,7 @@ const defaultState = () => ({
   title: 'Camp Simcha',
   idleMessage: 'Waiting for the next arrival',
   showUpNext: true,
+  theme: 'dark',          // 'dark' | 'light' — light is for outdoor daylight
   current: null,          // { id, name, at } currently on the big screen
   queue: [],              // [{ id, name }] waiting to be announced
   announced: [],          // [{ id, name, at }] already announced (newest first)
@@ -217,7 +218,7 @@ const actions = {
    * lost its state, e.g. after a redeploy on a host with an ephemeral disk).
    * Everything is sanitized; the screen comes back blank.
    */
-  restore({ queue, announced, title, idleMessage, showUpNext }) {
+  restore({ queue, announced, title, idleMessage, showUpNext, theme }) {
     const item = (x) => {
       const name = x && cleanName(x.name);
       return name ? { id: newId(), name } : null;
@@ -234,14 +235,15 @@ const actions = {
         .filter(Boolean);
     }
     state.current = null;
-    actions.settings({ title, idleMessage, showUpNext });
+    actions.settings({ title, idleMessage, showUpNext, theme });
   },
 
   /** Update display settings. */
-  settings({ title, idleMessage, showUpNext }) {
+  settings({ title, idleMessage, showUpNext, theme }) {
     if (typeof title === 'string') state.title = cleanName(title) || state.title;
     if (typeof idleMessage === 'string') state.idleMessage = String(idleMessage).trim().slice(0, 200);
     if (typeof showUpNext === 'boolean') state.showUpNext = showUpNext;
+    if (theme === 'dark' || theme === 'light') state.theme = theme;
   },
 
   /** Reset parts of the state. */

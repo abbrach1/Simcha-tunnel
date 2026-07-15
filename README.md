@@ -29,7 +29,8 @@ Opening the root URL (`/`) shows a chooser so each phone can pick its role.
   in medium-size text under the current one, so the announcer can see who's
   coming without asking.
 - **Display settings**: customize the idle title and welcome message from the
-  dashboard.
+  dashboard, and switch the display between dark mode and a white outdoor
+  mode (black-on-white reads much better in direct daylight).
 - **Display screen count** on the dashboard — warns you if no stage phone is
   connected.
 - **Stage-phone niceties**: tap for fullscreen, screen wake-lock so the phone

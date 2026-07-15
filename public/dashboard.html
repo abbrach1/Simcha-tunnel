@@ -306,6 +306,10 @@
           <input type="checkbox" id="set-upnext">
           <label for="set-upnext" style="margin:0">Show "Up next" list on the display</label>
         </div>
+        <div class="field switch">
+          <input type="checkbox" id="set-light">
+          <label for="set-light" style="margin:0">White display (better outdoors in daylight)</label>
+        </div>
         <button class="small" id="set-save">Save settings</button>
       </details>
     </section>
@@ -435,6 +439,7 @@
       $('set-title').value = state.title;
       $('set-idle').value = state.idleMessage;
       $('set-upnext').checked = state.showUpNext;
+      $('set-light').checked = state.theme === 'light';
     }
   }
 
@@ -455,6 +460,7 @@
           title: state.title,
           idleMessage: state.idleMessage,
           showUpNext: state.showUpNext,
+          theme: state.theme,
         }));
       } catch { /* storage full/blocked — backup is best-effort */ }
     }
@@ -591,10 +597,14 @@
       title: $('set-title').value,
       idleMessage: $('set-idle').value,
       showUpNext: $('set-upnext').checked,
+      theme: $('set-light').checked ? 'light' : 'dark',
     })) toast('Settings saved');
   });
   $('set-upnext').addEventListener('change', () => {
     api('settings', { showUpNext: $('set-upnext').checked });
+  });
+  $('set-light').addEventListener('change', () => {
+    api('settings', { theme: $('set-light').checked ? 'light' : 'dark' });
   });
 
   // ---- Reset ----------------------------------------------------------------------
