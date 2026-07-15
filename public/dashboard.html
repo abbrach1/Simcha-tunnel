@@ -90,6 +90,24 @@
     line-height: 1.2;
     overflow-wrap: anywhere;
   }
+  #btn-flash {
+    display: block;
+    width: 100%;
+    margin-top: 10px;
+    font-weight: 600;
+    color: #b32;
+    border-color: #c99;
+  }
+  #btn-flash.on {
+    background: #d92b2b;
+    border-color: #d92b2b;
+    color: #fff;
+    animation: btnflash 1s steps(2, jump-none) infinite;
+  }
+  @keyframes btnflash {
+    0%, 100% { background: #d92b2b; }
+    50% { background: #a51414; }
+  }
 
   /* Buttons */
   button {
@@ -297,6 +315,7 @@
         <button class="small" id="clear-call" title="Take the counselor call off the screen">Clear</button>
       </div>
       <div id="now-empty" class="empty-note">Nothing — screen is on standby</div>
+      <button id="btn-flash" type="button">Flash screen to attract attention</button>
     </section>
 
     <section>
@@ -361,6 +380,10 @@
         <div class="field switch">
           <input type="checkbox" id="set-light">
           <label for="set-light" style="margin:0">White display (better outdoors in daylight)</label>
+        </div>
+        <div class="field">
+          <label for="set-flash">Flash message (shown while the screen is flashing)</label>
+          <input type="text" id="set-flash">
         </div>
         <button class="small" id="set-save">Save settings</button>
       </details>
@@ -460,6 +483,13 @@
     if (arrival) $('now-arrival').textContent = arrival.name;
     if (call) $('now-call').textContent = call.name;
 
+    // Flash toggle
+    const flashBtn = $('btn-flash');
+    flashBtn.classList.toggle('on', !!state.flashOn);
+    flashBtn.textContent = state.flashOn
+      ? `Flashing: "${state.flashText}" — tap to stop`
+      : 'Flash screen to attract attention';
+
     const queueItems = (items, list) => items.map((q, i) => `
       <li class="item ${i === 0 ? 'next-up' : ''}" data-id="${q.id}" data-list="${list}">
         <span class="pos">${i + 1}.</span>
@@ -522,6 +552,7 @@
       $('set-idle').value = state.idleMessage;
       $('set-upnext').checked = state.showUpNext;
       $('set-light').checked = state.theme === 'light';
+      $('set-flash').value = state.flashText || '';
     }
   }
 
@@ -557,6 +588,7 @@
           idleMessage: state.idleMessage,
           showUpNext: state.showUpNext,
           theme: state.theme,
+          flashText: state.flashText,
         }));
       } catch { /* storage full/blocked — backup is best-effort */ }
     }
@@ -849,6 +881,7 @@
   $('btn-clear').addEventListener('click', () => api('clearScreen'));
   $('clear-arrival').addEventListener('click', () => api('clearScreen', { target: 'arrival' }));
   $('clear-call').addEventListener('click', () => api('clearScreen', { target: 'call' }));
+  $('btn-flash').addEventListener('click', () => api('flash', { on: !(state && state.flashOn) }));
 
   // Keyboard shortcuts when driven from a laptop
   document.addEventListener('keydown', (e) => {
@@ -859,7 +892,7 @@
   });
 
   // ---- Settings -----------------------------------------------------------------------
-  for (const id of ['set-title', 'set-idle']) {
+  for (const id of ['set-title', 'set-idle', 'set-flash']) {
     $(id).addEventListener('focus', () => { editingSettings = true; });
     $(id).addEventListener('blur', () => { editingSettings = false; });
   }
@@ -870,6 +903,7 @@
       idleMessage: $('set-idle').value,
       showUpNext: $('set-upnext').checked,
       theme: $('set-light').checked ? 'light' : 'dark',
+      flashText: $('set-flash').value,
     })) toast('Settings saved');
   });
   $('set-upnext').addEventListener('change', () => {

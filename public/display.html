@@ -66,6 +66,42 @@
     font-weight: 600;
   }
 
+  /* Attention flash: red blinking band + pulsing screen background */
+  #flashbar {
+    flex-shrink: 0;
+    text-align: center;
+    font-weight: 800;
+    font-size: clamp(22px, 6vmin, 70px);
+    line-height: 1.15;
+    padding: 1.6vmin 4vmin;
+    padding-top: max(1.6vmin, env(safe-area-inset-top));
+    background: #d92b2b;
+    color: #fff;
+    text-transform: uppercase;
+    letter-spacing: .03em;
+    animation: flashband 1s steps(2, jump-none) infinite;
+    overflow-wrap: break-word;
+  }
+  #flashbar.hidden { display: none; }
+  @keyframes flashband {
+    0%, 100% { background: #d92b2b; }
+    50% { background: #6e0f0f; }
+  }
+  body.flash { animation: flashbg 1s steps(2, jump-none) infinite; }
+  @keyframes flashbg {
+    0%, 100% { background-color: #000; }
+    50% { background-color: #3d0d0d; }
+  }
+  body.light.flash { animation: flashbg-light 1s steps(2, jump-none) infinite; }
+  @keyframes flashbg-light {
+    0%, 100% { background-color: #fff; }
+    50% { background-color: #ffd6d6; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    #flashbar, body.flash, body.light.flash { animation: none; }
+  }
+  body.flash #hint { display: none; }
+
   /* Counselor-call section shown ALONGSIDE the arrival (its own band) */
   #callbar {
     flex-shrink: 0;
@@ -196,6 +232,8 @@
   <div id="hint">Tap anywhere for fullscreen</div>
   <div id="status" class="offline"><span class="dot"></span><span id="status-text">Connecting…</span></div>
 
+  <div id="flashbar" class="hidden"></div>
+
   <div id="stage">
     <div id="kicker">Standby</div>
     <div id="name">…</div>
@@ -256,6 +294,16 @@
     document.body.classList.toggle('light', light);
     const themeMeta = document.querySelector('meta[name=theme-color]');
     if (themeMeta) themeMeta.content = light ? '#ffffff' : '#000000';
+
+    // Attention flash: red band with the flash message, whole screen pulses.
+    const flashbar = document.getElementById('flashbar');
+    document.body.classList.toggle('flash', !!state.flashOn);
+    if (state.flashOn) {
+      flashbar.textContent = state.flashText || 'Waiting by the tunnel';
+      flashbar.classList.remove('hidden');
+    } else {
+      flashbar.classList.add('hidden');
+    }
 
     // Two independent slots: an arrival and a counselor call can be on
     // screen at the same time, each in its own section.
@@ -485,6 +533,7 @@
           idleMessage: c.idleMessage,
           showUpNext: c.showUpNext,
           theme: c.theme,
+          flashText: c.flashText,
           showCurrent: { arrival: !!c.currentArrival, call: !!c.currentCall },
         });
         // Keep showing the cached content; the restored state arrives next.

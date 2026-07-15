@@ -36,6 +36,8 @@ const defaultState = () => ({
   idleMessage: 'Waiting for the next arrival',
   showUpNext: true,
   theme: 'dark',          // 'dark' | 'light' — light is for outdoor daylight
+  flashOn: false,         // flash the display to attract attention
+  flashText: 'Waiting by the tunnel',   // band shown while flashing
   // The screen has two independent slots: an arrival and a counselor call
   // can be shown at the same time, each in its own section.
   currentArrival: null,   // { id, name, at } arrival on screen
@@ -193,7 +195,7 @@ const actions = {
    * display that was offline with an old cache can't win over a fresh one);
    * any other action cancels the window, so live edits are never undone.
    */
-  restore(state, { queue, announced, callQueue, callAnnounced, title, idleMessage, showUpNext, theme, showCurrent, at }) {
+  restore(state, { queue, announced, callQueue, callAnnounced, title, idleMessage, showUpNext, theme, flashText, showCurrent, at }) {
     const empty = !state.currentArrival && !state.currentCall
       && !state.queue.length && !state.announced.length
       && !state.callQueue.length && !state.callAnnounced.length;
@@ -227,15 +229,21 @@ const actions = {
     const wantCall = sc === 'call' || sc.call;
     state.currentArrival = wantArrival && state.announced[0] ? { ...state.announced[0] } : null;
     state.currentCall = wantCall && state.callAnnounced[0] ? { ...state.callAnnounced[0] } : null;
-    actions.settings(state, { title, idleMessage, showUpNext, theme });
+    actions.settings(state, { title, idleMessage, showUpNext, theme, flashText });
+  },
+
+  /** Turn the attention flash on or off. */
+  flash(state, { on } = {}) {
+    state.flashOn = !!on;
   },
 
   /** Update display settings. */
-  settings(state, { title, idleMessage, showUpNext, theme }) {
+  settings(state, { title, idleMessage, showUpNext, theme, flashText }) {
     if (typeof title === 'string') state.title = cleanName(title) || state.title;
     if (typeof idleMessage === 'string') state.idleMessage = String(idleMessage).trim().slice(0, 200);
     if (typeof showUpNext === 'boolean') state.showUpNext = showUpNext;
     if (theme === 'dark' || theme === 'light') state.theme = theme;
+    if (typeof flashText === 'string') state.flashText = cleanName(flashText) || state.flashText;
   },
 
   /** Reset parts of the state (both channels). */
@@ -247,8 +255,8 @@ const actions = {
       state.queue = [];
       state.callQueue = [];
     } else if (scope === 'all') {
-      const { title, idleMessage, showUpNext, theme } = state;
-      Object.assign(state, defaultState(), { title, idleMessage, showUpNext, theme });
+      const { title, idleMessage, showUpNext, theme, flashText } = state;
+      Object.assign(state, defaultState(), { title, idleMessage, showUpNext, theme, flashText });
     }
   },
 };
