@@ -3,10 +3,10 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta name="theme-color" content="#131518">
+<meta name="theme-color" content="#ffffff">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="apple-mobile-web-app-title" content="Camp Simcha">
 <meta name="format-detection" content="telephone=no">
 <title>Camp Simcha — Dashboard</title>
@@ -14,25 +14,14 @@
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
 <link rel="manifest" href="manifest.webmanifest">
 <style>
-  :root {
-    --bg: #131518;
-    --card: #1c1f24;
-    --card2: #272b31;
-    --text: #e8eaed;
-    --muted: #8b929c;
-    --accent: #7aa5e8;
-    --green: #3fa860;
-    --red: #d9605f;
-    --blue: #33589c;
-    --radius: 8px;
-  }
   * { margin: 0; padding: 0; box-sizing: border-box; }
   html { -webkit-text-size-adjust: 100%; }
   body {
-    background: var(--bg);
-    color: var(--text);
+    background: #fff;
+    color: #222;
     font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
-    padding-bottom: 130px; /* room for sticky action bar */
+    font-size: 15px;
+    padding-bottom: 120px; /* room for the fixed action bar */
     overscroll-behavior-y: contain;
     -webkit-touch-callout: none;
     -webkit-tap-highlight-color: transparent;
@@ -42,9 +31,9 @@
     position: sticky;
     top: 0;
     z-index: 10;
-    background: var(--bg);
-    padding: max(12px, env(safe-area-inset-top)) 16px 10px;
-    border-bottom: 1px solid #2a2e34;
+    background: #fff;
+    padding: max(10px, env(safe-area-inset-top)) 14px 8px;
+    border-bottom: 1px solid #ddd;
   }
   header .row {
     display: flex;
@@ -52,124 +41,89 @@
     justify-content: space-between;
     gap: 10px;
   }
-  header h1 { font-size: 17px; font-weight: 700; letter-spacing: .02em; }
+  header h1 { font-size: 16px; font-weight: 700; }
 
   #conn {
     display: flex;
     align-items: center;
     gap: 6px;
     font-size: 12px;
-    color: var(--muted);
+    color: #666;
     white-space: nowrap;
   }
-  #conn .dot { width: 9px; height: 9px; border-radius: 50%; background: var(--red); }
-  #conn.online .dot { background: var(--green); }
+  #conn .dot { width: 8px; height: 8px; border-radius: 50%; background: #c33; }
+  #conn.online .dot { background: #2a8a3e; }
 
   #screens {
-    margin-top: 6px;
+    margin-top: 4px;
     font-size: 12.5px;
-    color: var(--muted);
+    color: #666;
   }
-  #screens.warn { color: var(--red); font-weight: 600; }
+  #screens.warn { color: #b32; font-weight: 600; }
 
-  main { padding: 14px 14px 0; max-width: 640px; margin: 0 auto; }
+  main { padding: 0 14px; max-width: 640px; margin: 0 auto; }
 
-  .card {
-    background: var(--card);
-    border: 1px solid #2a2e34;
-    border-radius: var(--radius);
-    padding: 14px;
-    margin-bottom: 12px;
+  section { padding: 14px 0; border-bottom: 1px solid #e5e5e5; }
+  section:last-of-type { border-bottom: none; }
+  h2 {
+    font-size: 14px;
+    font-weight: 700;
+    margin-bottom: 8px;
   }
-  .card h2 {
-    font-size: 13px;
-    text-transform: uppercase;
-    letter-spacing: .12em;
-    color: var(--muted);
-    margin-bottom: 10px;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 8px;
-  }
-  .card h2 .count {
-    background: var(--card2);
-    color: var(--text);
-    border-radius: 999px;
-    padding: 2px 10px;
-    font-size: 12px;
-    letter-spacing: 0;
-  }
+  h2 .count { font-weight: 400; color: #666; }
 
   /* Now showing */
-  #now-card { text-align: center; }
   #now-name {
-    font-size: 34px;
-    font-weight: 900;
-    line-height: 1.15;
+    font-size: 26px;
+    font-weight: 700;
+    line-height: 1.2;
     overflow-wrap: break-word;
-    min-height: 40px;
   }
-  #now-name.empty { color: var(--muted); font-weight: 500; font-size: 18px; }
+  #now-name.empty { color: #888; font-weight: 400; font-size: 15px; }
 
   /* Buttons */
   button {
     font: inherit;
-    color: var(--text);
-    background: var(--card2);
-    border: 1px solid #363b42;
-    border-radius: var(--radius);
-    padding: 10px 14px;
+    color: #222;
+    background: #f2f2f2;
+    border: 1px solid #bbb;
+    border-radius: 5px;
+    padding: 9px 13px;
     cursor: pointer;
     -webkit-tap-highlight-color: transparent;
     touch-action: manipulation;
   }
-  button:active { transform: scale(.97); }
-  button:disabled { opacity: .4; pointer-events: none; }
-  button.small { padding: 7px 10px; font-size: 13px; }
-  button.danger { color: var(--red); border-color: rgba(255,107,107,.35); }
-  button.ghost { background: transparent; }
+  button:active { background: #e2e2e2; }
+  button:disabled { opacity: .45; pointer-events: none; }
+  button.small { padding: 6px 10px; font-size: 13px; }
+  button.danger { color: #b32; border-color: #c99; }
+  button.link {
+    background: none;
+    border: none;
+    color: #1558b0;
+    text-decoration: underline;
+    padding: 4px 0;
+    font-size: 13px;
+  }
 
   /* Add form */
   #add-form { display: flex; gap: 8px; }
-  #add-input {
-    flex: 1;
-    font: inherit;
-    font-size: 16px;
-    color: var(--text);
-    background: var(--card2);
-    border: 1px solid #363b42;
-    border-radius: var(--radius);
-    padding: 11px 12px;
-    min-width: 0;
-  }
-  #add-input::placeholder { color: var(--muted); }
-  #add-form button { background: var(--blue); border-color: transparent; font-weight: 700; }
-
-  #bulk-toggle {
-    margin-top: 10px;
-    background: none;
-    border: none;
-    color: var(--muted);
-    font-size: 13px;
-    text-decoration: underline;
-    padding: 4px 0;
-  }
-  #bulk-area { display: none; margin-top: 10px; }
-  #bulk-area.open { display: block; }
-  #bulk-text {
-    width: 100%;
-    height: 120px;
+  input[type=text], textarea {
     font: inherit;
     font-size: 16px; /* ≥16px so iOS Safari doesn't auto-zoom on focus */
-    color: var(--text);
-    background: var(--card2);
-    border: 1px solid #363b42;
-    border-radius: var(--radius);
-    padding: 10px 12px;
-    resize: vertical;
+    color: #222;
+    background: #fff;
+    border: 1px solid #bbb;
+    border-radius: 5px;
+    padding: 9px 10px;
   }
-  #bulk-area button { margin-top: 8px; background: var(--blue); border-color: transparent; font-weight: 700; }
+  #add-input { flex: 1; min-width: 0; }
+  #add-form button { font-weight: 600; }
+
+  #bulk-area { display: none; margin-top: 10px; }
+  #bulk-area.open { display: block; }
+  #bulk-text { width: 100%; height: 110px; resize: vertical; }
+  #bulk-area button { margin-top: 8px; font-weight: 600; }
 
   /* Queue list */
   ul { list-style: none; }
@@ -177,111 +131,91 @@
     display: flex;
     align-items: center;
     gap: 10px;
-    padding: 10px 4px;
-    border-bottom: 1px solid rgba(255,255,255,.06);
+    padding: 9px 0;
+    border-bottom: 1px solid #eee;
   }
   .item:last-child { border-bottom: none; }
   .item .pos {
-    width: 26px;
-    text-align: center;
-    color: var(--muted);
+    width: 24px;
+    text-align: right;
+    color: #888;
     font-size: 13px;
     flex-shrink: 0;
   }
   .item .name {
     flex: 1;
-    font-size: 17px;
-    font-weight: 600;
+    font-size: 16px;
     overflow-wrap: anywhere;
   }
-  .item.next-up .name { color: var(--accent); }
-  .item.next-up .pos { color: var(--accent); }
-  .item .btns { display: flex; gap: 6px; flex-shrink: 0; }
-  .item .btns button { padding: 8px 10px; font-size: 15px; line-height: 1; }
+  .item.next-up .name { font-weight: 700; }
+  .item .btns { display: flex; gap: 5px; flex-shrink: 0; }
+  .item .btns button { padding: 7px 9px; font-size: 14px; line-height: 1; }
 
   /* On narrow phones, give the name its own line so it never squeezes;
      buttons drop below with full-size touch targets. */
   @media (max-width: 480px) {
-    .item { flex-wrap: wrap; row-gap: 8px; }
+    .item { flex-wrap: wrap; row-gap: 6px; }
     .item .name { flex: 1 1 calc(100% - 40px); }
-    .item .btns { margin-left: 36px; }
-    .item .btns button { padding: 9px 12px; }
+    .item .btns { margin-left: 34px; }
+    .item .btns button { padding: 8px 11px; }
   }
 
-  .empty-note { color: var(--muted); font-size: 14px; padding: 8px 4px; }
+  .empty-note { color: #888; font-size: 14px; padding: 4px 0; }
 
   /* History */
-  .hist-item { display: flex; align-items: center; gap: 10px; padding: 8px 4px; border-bottom: 1px solid rgba(255,255,255,.06); }
+  .hist-item { display: flex; align-items: center; gap: 10px; padding: 7px 0; border-bottom: 1px solid #eee; }
   .hist-item:last-child { border-bottom: none; }
-  .hist-item .name { flex: 1; font-size: 15px; color: var(--muted); overflow-wrap: anywhere; }
-  .hist-item .time { font-size: 12px; color: var(--muted); opacity: .7; flex-shrink: 0; }
+  .hist-item .name { flex: 1; font-size: 15px; overflow-wrap: anywhere; }
+  .hist-item .time { font-size: 12px; color: #888; flex-shrink: 0; }
 
   /* Settings */
-  .field { margin-bottom: 12px; }
-  .field label { display: block; font-size: 13px; color: var(--muted); margin-bottom: 5px; }
-  .field input[type=text] {
-    width: 100%;
-    font: inherit;
-    font-size: 16px; /* ≥16px so iOS Safari doesn't auto-zoom on focus */
-    color: var(--text);
-    background: var(--card2);
-    border: 1px solid #363b42;
-    border-radius: var(--radius);
-    padding: 10px 12px;
-  }
-  .switch { display: flex; align-items: center; gap: 10px; font-size: 15px; }
-  .switch input { width: 20px; height: 20px; accent-color: var(--blue); }
+  .field { margin-bottom: 10px; }
+  .field label { display: block; font-size: 13px; color: #555; margin-bottom: 4px; }
+  .field input[type=text] { width: 100%; }
+  .switch { display: flex; align-items: center; gap: 8px; font-size: 15px; }
+  .switch input { width: 18px; height: 18px; }
 
   details > summary {
     cursor: pointer;
-    font-size: 13px;
-    text-transform: uppercase;
-    letter-spacing: .12em;
-    color: var(--muted);
-    list-style: none;
+    font-size: 14px;
+    font-weight: 700;
   }
-  details > summary::before { content: '▸ '; }
-  details[open] > summary::before { content: '▾ '; }
-  details[open] > summary { margin-bottom: 10px; }
+  details > summary .count { font-weight: 400; color: #666; }
+  details[open] > summary { margin-bottom: 8px; }
 
-  /* Sticky action bar */
+  /* Fixed action bar */
   #action-bar {
     position: fixed;
     left: 0; right: 0; bottom: 0;
     z-index: 20;
     display: flex;
-    gap: 10px;
-    padding: 12px 14px calc(12px + env(safe-area-inset-bottom));
-    background: var(--bg);
-    border-top: 1px solid #2a2e34;
+    gap: 8px;
+    padding: 10px 14px calc(10px + env(safe-area-inset-bottom));
+    background: #fff;
+    border-top: 1px solid #ccc;
   }
   #btn-next {
     flex: 1;
-    background: var(--blue);
+    background: #1558b0;
+    border-color: #1558b0;
     color: #fff;
-    font-size: 19px;
+    font-size: 17px;
     font-weight: 700;
-    border: none;
-    border-radius: var(--radius);
-    padding: 16px;
+    padding: 13px;
   }
-  #btn-next small { display: block; font-size: 12.5px; font-weight: 500; opacity: .8; margin-top: 2px; }
-  #btn-prev, #btn-clear {
-    width: 74px;
-    font-size: 12px;
-    font-weight: 600;
-    border-radius: var(--radius);
-  }
+  #btn-next:active { background: #114a95; }
+  #btn-next small { display: block; font-size: 12px; font-weight: 400; opacity: .85; margin-top: 2px; }
+  #btn-prev, #btn-clear { width: 72px; font-size: 12px; }
 
   #toast {
     position: fixed;
     left: 50%;
-    bottom: 120px;
+    bottom: 110px;
     transform: translateX(-50%);
-    background: #000;
+    background: #333;
     color: #fff;
-    padding: 10px 18px;
-    border-radius: 999px;
+    padding: 9px 16px;
+    border-radius: 5px;
     font-size: 14px;
     opacity: 0;
     transition: opacity .25s;
@@ -290,7 +224,7 @@
     max-width: 85vw;
     text-align: center;
   }
-  #toast.show { opacity: .92; }
+  #toast.show { opacity: .95; }
 </style>
 </head>
 <body>
@@ -303,47 +237,47 @@
   </header>
 
   <main>
-    <section class="card" id="now-card">
+    <section>
       <h2>Now on screen</h2>
-      <div id="now-name" class="empty">Screen is showing the welcome message</div>
+      <div id="now-name" class="empty">Nothing — screen is on standby</div>
     </section>
 
-    <section class="card">
+    <section>
       <h2>Add names</h2>
       <form id="add-form">
-        <input id="add-input" type="text" placeholder="Camper name…" autocomplete="off" enterkeyhint="done">
+        <input id="add-input" type="text" placeholder="Camper name" autocomplete="off" enterkeyhint="done">
         <button type="submit">Add</button>
       </form>
-      <button id="bulk-toggle" type="button">Paste a whole list…</button>
+      <button id="bulk-toggle" type="button" class="link">Paste a whole list…</button>
       <div id="bulk-area">
         <textarea id="bulk-text" placeholder="One name per line:&#10;Moshe Cohen&#10;Dovid Klein&#10;Yanky Friedman"></textarea>
         <button id="bulk-add" type="button">Add all names</button>
       </div>
     </section>
 
-    <section class="card">
-      <h2>Up next <span class="count" id="queue-count">0</span></h2>
+    <section>
+      <h2>Up next <span class="count" id="queue-count">(0)</span></h2>
       <ul id="queue"></ul>
       <div class="empty-note" id="queue-empty">No names waiting.</div>
     </section>
 
-    <section class="card">
+    <section>
       <details>
-        <summary>Already announced <span class="count" id="hist-count">0</span></summary>
+        <summary>Already announced <span class="count" id="hist-count">(0)</span></summary>
         <ul id="history"></ul>
         <div class="empty-note" id="hist-empty">Nobody announced yet.</div>
       </details>
     </section>
 
-    <section class="card">
+    <section>
       <details>
         <summary>Display settings</summary>
         <div class="field">
-          <label for="set-title">Title (shown when screen is idle)</label>
+          <label for="set-title">Title (shown when screen is on standby)</label>
           <input type="text" id="set-title">
         </div>
         <div class="field">
-          <label for="set-idle">Welcome message (shown under the title)</label>
+          <label for="set-idle">Standby message (shown under the title)</label>
           <input type="text" id="set-idle">
         </div>
         <div class="field switch">
@@ -354,10 +288,10 @@
       </details>
     </section>
 
-    <section class="card">
+    <section>
       <details>
-        <summary>Danger zone</summary>
-        <div style="display:flex; gap:8px; flex-wrap:wrap;">
+        <summary>Reset</summary>
+        <div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:4px;">
           <button class="small danger" id="btn-clear-queue">Clear queue</button>
           <button class="small danger" id="btn-clear-hist">Clear history</button>
           <button class="small danger" id="btn-reset">Reset everything</button>
@@ -434,35 +368,36 @@
       nowName.textContent = state.current.name;
       nowName.classList.remove('empty');
     } else {
-      nowName.textContent = 'Screen is showing the welcome message';
+      nowName.textContent = 'Nothing — screen is on standby';
       nowName.classList.add('empty');
     }
 
     // Queue
     const queueEl = $('queue');
-    $('queue-count').textContent = state.queue.length;
+    $('queue-count').textContent = `(${state.queue.length})`;
     $('queue-empty').style.display = state.queue.length ? 'none' : 'block';
     queueEl.innerHTML = state.queue.map((q, i) => `
       <li class="item ${i === 0 ? 'next-up' : ''}" data-id="${q.id}">
-        <span class="pos">${i + 1}</span>
+        <span class="pos">${i + 1}.</span>
         <span class="name">${esc(q.name)}</span>
         <span class="btns">
           <button class="small" data-act="show" title="Show on screen now">Show</button>
           <button class="small" data-act="up" title="Move up" ${i === 0 ? 'disabled' : ''}>↑</button>
           <button class="small" data-act="down" title="Move down" ${i === state.queue.length - 1 ? 'disabled' : ''}>↓</button>
-          <button class="small" data-act="edit" title="Edit">✎</button>
+          <button class="small" data-act="edit" title="Edit">Edit</button>
           <button class="small danger" data-act="remove" title="Remove">✕</button>
         </span>
       </li>`).join('');
 
-    // History
+    // History (newest first; the top entry may still be on screen)
     const histEl = $('history');
-    $('hist-count').textContent = state.announced.length;
+    $('hist-count').textContent = `(${state.announced.length})`;
     $('hist-empty').style.display = state.announced.length ? 'none' : 'block';
+    const curId = state.current && state.current.id;
     histEl.innerHTML = state.announced.map((a) => `
       <li class="hist-item" data-id="${a.id}">
         <span class="name">${esc(a.name)}</span>
-        <span class="time">${fmtTime(a.at)}</span>
+        <span class="time">${fmtTime(a.at)}${a.id === curId ? ' · on screen' : ''}</span>
         <button class="small" data-act="requeue" title="Announce again">Re-queue</button>
       </li>`).join('');
 
@@ -591,7 +526,7 @@
     api('settings', { showUpNext: $('set-upnext').checked });
   });
 
-  // ---- Danger zone ----------------------------------------------------------------------
+  // ---- Reset ----------------------------------------------------------------------
   $('btn-clear-queue').addEventListener('click', () => {
     if (confirm('Remove ALL names from the queue?')) api('reset', { scope: 'queue' });
   });

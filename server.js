@@ -159,43 +159,48 @@ const actions = {
     state.queue = next;
   },
 
-  /** Announce the next name in the queue. */
+  /**
+   * Announce the next name in the queue. A name counts as announced the
+   * moment it goes on screen: it is added to the history immediately, and
+   * `current` mirrors the newest history entry.
+   */
   next() {
     if (state.queue.length === 0) return;
-    if (state.current) {
-      state.announced.unshift({ ...state.current, at: Date.now() });
-    }
     const item = state.queue.shift();
-    state.current = { id: item.id, name: item.name, at: Date.now() };
+    const entry = { id: item.id, name: item.name, at: Date.now() };
+    state.announced.unshift(entry);
+    state.current = entry;
   },
 
   /** Announce a specific queued name immediately. */
   show({ id }) {
     const i = state.queue.findIndex((q) => q.id === id);
     if (i < 0) return;
-    if (state.current) {
-      state.announced.unshift({ ...state.current, at: Date.now() });
-    }
     const [item] = state.queue.splice(i, 1);
-    state.current = { id: item.id, name: item.name, at: Date.now() };
+    const entry = { id: item.id, name: item.name, at: Date.now() };
+    state.announced.unshift(entry);
+    state.current = entry;
   },
 
-  /** Go back: put current at the front of the queue, re-show last announced. */
+  /**
+   * Go back one step. If a name is on screen, undo its announcement (back
+   * to the front of the queue) and re-show the one before it. If the screen
+   * is blank, just re-show the most recently announced name.
+   */
   prev() {
     if (state.announced.length === 0) return;
     if (state.current) {
-      state.queue.unshift({ id: state.current.id, name: state.current.name });
+      const undone = state.announced.shift();
+      state.queue.unshift({ id: undone.id, name: undone.name });
+      state.current = state.announced[0] || null;
+    } else {
+      state.current = state.announced[0];
     }
-    const last = state.announced.shift();
-    state.current = { id: last.id, name: last.name, at: Date.now() };
   },
 
-  /** Blank the big screen (back to the welcome message). */
+  /** Blank the big screen (the name stays in the announced history). */
   clearScreen() {
-    if (state.current) {
-      state.announced.unshift({ ...state.current, at: Date.now() });
-      state.current = null;
-    }
+    state.current = null;
   },
 
   /** Put an announced name back at the front of the queue. */
@@ -203,6 +208,7 @@ const actions = {
     const i = state.announced.findIndex((a) => a.id === id);
     if (i < 0) return;
     const [item] = state.announced.splice(i, 1);
+    if (state.current && state.current.id === id) state.current = null;
     state.queue.unshift({ id: item.id, name: item.name });
   },
 
