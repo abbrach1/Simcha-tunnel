@@ -734,20 +734,37 @@
       }, () => setConn(false));
 
       // Presence heartbeat so everyone can count displays and admins.
+      // ts is a Firestore SERVER timestamp: phone clock skew can't make a
+      // live device look stale. Freshness is judged by comparing server
+      // timestamps to each other (newest beat = "now"), never to a phone
+      // clock. Beats also fire immediately when the page wakes up.
       const meRef = fsMod.doc(db, 'boards', 'main', 'clients', clientId);
-      const beat = () => fsMod.setDoc(meRef, { role: 'dashboard', ts: Date.now() }).catch(() => {});
+      const beat = () => fsMod.setDoc(meRef, { role: 'dashboard', ts: fsMod.serverTimestamp() }).catch(() => {});
       beat();
-      setInterval(beat, 10000);
+      setInterval(beat, 7000);
+      document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'visible') beat();
+      });
+      addEventListener('online', beat);
+      addEventListener('pageshow', beat);
       fsMod.onSnapshot(fsMod.collection(db, 'boards', 'main', 'clients'), (qs) => {
-        const now = Date.now();
-        const next = { displays: 0, dashboards: 0 };
+        const entries = [];
         qs.forEach((d) => {
           const c = d.data();
-          if (c && now - c.ts < 30000) {
-            if (c.role === 'display') next.displays++;
-            else if (c.role === 'dashboard') next.dashboards++;
-          }
+          if (!c) return;
+          const ms = c.ts && typeof c.ts.toMillis === 'function' ? c.ts.toMillis()
+            : (typeof c.ts === 'number' ? c.ts : null);
+          entries.push({ role: c.role, ms });
         });
+        const maxMs = entries.reduce((m, e) => (e.ms && e.ms > m ? e.ms : m), 0);
+        const next = { displays: 0, dashboards: 0 };
+        for (const e of entries) {
+          // ms === null is my own just-written beat (serverTimestamp pending).
+          const fresh = e.ms === null || maxMs - e.ms < 25000;
+          if (!fresh) continue;
+          if (e.role === 'display') next.displays++;
+          else if (e.role === 'dashboard') next.dashboards++;
+        }
         counts = next;
         emit();
       }, () => { /* counts stay stale — not critical */ });
