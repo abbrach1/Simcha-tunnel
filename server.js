@@ -212,6 +212,31 @@ const actions = {
     state.queue.unshift({ id: item.id, name: item.name });
   },
 
+  /**
+   * Restore a full backup (sent by a dashboard phone when the server has
+   * lost its state, e.g. after a redeploy on a host with an ephemeral disk).
+   * Everything is sanitized; the screen comes back blank.
+   */
+  restore({ queue, announced, title, idleMessage, showUpNext }) {
+    const item = (x) => {
+      const name = x && cleanName(x.name);
+      return name ? { id: newId(), name } : null;
+    };
+    if (Array.isArray(queue)) {
+      state.queue = queue.slice(0, 2000).map(item).filter(Boolean);
+    }
+    if (Array.isArray(announced)) {
+      state.announced = announced.slice(0, 2000)
+        .map((a) => {
+          const i = item(a);
+          return i ? { ...i, at: Number(a.at) || Date.now() } : null;
+        })
+        .filter(Boolean);
+    }
+    state.current = null;
+    actions.settings({ title, idleMessage, showUpNext });
+  },
+
   /** Update display settings. */
   settings({ title, idleMessage, showUpNext }) {
     if (typeof title === 'string') state.title = cleanName(title) || state.title;

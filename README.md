@@ -35,7 +35,10 @@ Opening the root URL (`/`) shows a chooser so each phone can pick its role.
 - **Stage-phone niceties**: tap for fullscreen, screen wake-lock so the phone
   doesn't sleep mid-event.
 - **Persistence**: state is saved to `data/state.json`, so a server restart
-  doesn't lose the list.
+  doesn't lose the list. As a second layer, the dashboard phone keeps its own
+  backup in the browser — if the server ever comes back empty (e.g. a cloud
+  host wiped its disk on redeploy), the dashboard offers a one-tap **Restore**
+  of the queue, history, and settings.
 - **Keyboard shortcuts** when driving from a laptop: `Space`/`→` announce
   next, `←` go back.
 - **Zero dependencies** — plain Node.js, nothing to `npm install`.

@@ -207,6 +207,21 @@
   #btn-next small { display: block; font-size: 12px; font-weight: 400; opacity: .85; margin-top: 2px; }
   #btn-prev, #btn-clear { width: 72px; font-size: 12px; }
 
+  #restore-banner {
+    display: none;
+    margin: 10px 0 0;
+    padding: 10px 12px;
+    background: #fff8e1;
+    border: 1px solid #d9c36a;
+    border-radius: 5px;
+    font-size: 14px;
+    line-height: 1.4;
+  }
+  #restore-banner.show { display: block; }
+  #restore-banner .actions { display: flex; gap: 8px; margin-top: 8px; }
+  #restore-banner button { font-size: 13px; padding: 7px 12px; }
+  #restore-banner #btn-restore { font-weight: 600; }
+
   #toast {
     position: fixed;
     left: 50%;
@@ -237,6 +252,13 @@
   </header>
 
   <main>
+    <div id="restore-banner">
+      <span id="restore-text"></span>
+      <div class="actions">
+        <button id="btn-restore" type="button">Restore</button>
+        <button id="btn-restore-dismiss" type="button">Dismiss</button>
+      </div>
+    </div>
     <section>
       <h2>Now on screen</h2>
       <div id="now-name" class="empty">Nothing — screen is on standby</div>
@@ -416,6 +438,55 @@
     }
   }
 
+  // ---- Local backup: survive a server that lost its state ---------------------
+  // Every non-empty state is mirrored to this phone's localStorage. If we ever
+  // connect to a server with NO data while a backup exists, offer to restore.
+  const BACKUP_KEY = 'camp-simcha-arrivals-backup';
+  let restoreDismissed = false;
+
+  function updateBackup() {
+    const hasData = state.queue.length || state.announced.length || state.current;
+    if (hasData) {
+      try {
+        localStorage.setItem(BACKUP_KEY, JSON.stringify({
+          at: Date.now(),
+          queue: state.queue,
+          announced: state.announced,
+          title: state.title,
+          idleMessage: state.idleMessage,
+          showUpNext: state.showUpNext,
+        }));
+      } catch { /* storage full/blocked — backup is best-effort */ }
+    }
+
+    const banner = $('restore-banner');
+    if (hasData || restoreDismissed) {
+      banner.classList.remove('show');
+      return;
+    }
+    let backup = null;
+    try { backup = JSON.parse(localStorage.getItem(BACKUP_KEY)); } catch { /* ignore */ }
+    if (!backup || (!backup.queue?.length && !backup.announced?.length)) return;
+    const when = new Date(backup.at).toLocaleString([], { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
+    $('restore-text').textContent =
+      `The server has no data, but this phone has a backup from ${when} `
+      + `(${backup.queue.length} in queue, ${backup.announced.length} announced).`;
+    banner.classList.add('show');
+  }
+
+  $('btn-restore').addEventListener('click', async () => {
+    let backup = null;
+    try { backup = JSON.parse(localStorage.getItem(BACKUP_KEY)); } catch { /* ignore */ }
+    if (!backup) return;
+    restoreDismissed = true;
+    $('restore-banner').classList.remove('show');
+    if (await api('restore', backup)) toast('List restored');
+  });
+  $('btn-restore-dismiss').addEventListener('click', () => {
+    restoreDismissed = true;
+    $('restore-banner').classList.remove('show');
+  });
+
   // ---- Live connection -------------------------------------------------------------
   let es = null;
   let retryDelay = 1000;
@@ -428,7 +499,7 @@
   function connect() {
     es = new EventSource('/events?role=dashboard');
     es.onopen = () => { retryDelay = 1000; setConn(true); };
-    es.onmessage = (e) => { state = JSON.parse(e.data); render(); };
+    es.onmessage = (e) => { state = JSON.parse(e.data); render(); updateBackup(); };
     es.onerror = () => {
       setConn(false);
       es.close();
