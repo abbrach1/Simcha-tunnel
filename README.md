@@ -8,7 +8,7 @@ Two phones, two roles:
 
 | Phone | URL | What it does |
 |---|---|---|
-| **Stage display** | `/display` | Fullscreen, giant auto-sizing name with a confetti pop on each new arrival. The announcer reads from this. |
+| **Stage display** | `/display` | Fullscreen, giant auto-sizing name with a pop animation on each new arrival. The announcer reads from this. |
 | **Control dashboard** | `/dashboard` | Enter/paste the list of names, reorder them, and tap **Announce next ▶** as each camper walks in. |
 
 Opening the root URL (`/`) shows a chooser so each phone can pick its role.
@@ -32,7 +32,7 @@ Opening the root URL (`/`) shows a chooser so each phone can pick its role.
 - **Display screen count** on the dashboard — warns you if no stage phone is
   connected.
 - **Stage-phone niceties**: tap for fullscreen, screen wake-lock so the phone
-  doesn't sleep mid-event, confetti on each name (respects reduced-motion).
+  doesn't sleep mid-event.
 - **Persistence**: state is saved to `data/state.json`, so a server restart
   doesn't lose the list.
 - **Keyboard shortcuts** when driving from a laptop: `Space`/`→` announce

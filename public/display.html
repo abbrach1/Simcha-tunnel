@@ -126,19 +126,6 @@
     transition: opacity 1s;
   }
   #hint.faded { opacity: 0; }
-
-  /* Confetti burst on each new name */
-  .confetti {
-    position: fixed;
-    top: -20px;
-    width: 10px; height: 16px;
-    border-radius: 2px;
-    pointer-events: none;
-    animation: fall linear forwards;
-  }
-  @keyframes fall {
-    to { transform: translateY(110vh) rotate(720deg); opacity: .9; }
-  }
 </style>
 </head>
 <body>
@@ -184,23 +171,6 @@
     nameEl.style.fontSize = lo + 'px';
   }
 
-  // ---- Confetti -------------------------------------------------------------
-  const COLORS = ['#ffd166', '#ef476f', '#06d6a0', '#118ab2', '#f78c6b', '#a78bfa'];
-  function confetti() {
-    if (matchMedia('(prefers-reduced-motion: reduce)').matches) return;
-    for (let i = 0; i < 60; i++) {
-      const p = document.createElement('div');
-      p.className = 'confetti';
-      p.style.left = Math.random() * 100 + 'vw';
-      p.style.background = COLORS[i % COLORS.length];
-      p.style.animationDuration = (2.2 + Math.random() * 1.8) + 's';
-      p.style.animationDelay = (Math.random() * 0.4) + 's';
-      p.style.transform = `rotate(${Math.random() * 360}deg)`;
-      document.body.appendChild(p);
-      setTimeout(() => p.remove(), 5000);
-    }
-  }
-
   // ---- Render ----------------------------------------------------------------
   function render() {
     if (!state) return;
@@ -215,7 +185,6 @@
         nameEl.classList.remove('entering');
         void nameEl.offsetWidth; // restart animation
         nameEl.classList.add('entering');
-        confetti();
       }
     } else {
       lastShownId = null;
