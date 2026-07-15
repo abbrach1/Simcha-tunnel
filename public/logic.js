@@ -234,9 +234,12 @@ const actions = {
       merged.sort((a, b) => b.at - a.at);
       return merged.slice(0, 2000);
     };
-    if (Array.isArray(queue)) state.queue = queueOf(queue);
+    // Extra queue guard: a backup with an EMPTY queue never wipes a non-empty
+    // one. Worst case of keeping the old queue is re-announcing someone;
+    // worst case of wiping it is campers who never get announced.
+    if (Array.isArray(queue) && (queue.length || !state.queue.length)) state.queue = queueOf(queue);
     if (Array.isArray(announced)) state.announced = mergeHistories(historyOf(announced), state.announced);
-    if (Array.isArray(callQueue)) state.callQueue = queueOf(callQueue);
+    if (Array.isArray(callQueue) && (callQueue.length || !state.callQueue.length)) state.callQueue = queueOf(callQueue);
     if (Array.isArray(callAnnounced)) state.callAnnounced = mergeHistories(historyOf(callAnnounced), state.callAnnounced);
     // Re-show exactly what was on screen before the server lost its data.
     // showCurrent: { arrival: bool, call: bool } (legacy string also accepted).

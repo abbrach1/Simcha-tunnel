@@ -795,9 +795,9 @@
       // touch the live board doc — the log is never deleted from the app.
       const logCol = fsMod.collection(db, 'boards', 'main', 'log');
       fbApply = (action, params) => {
-        let logEntry = null;
+        let logEntries = [];
         return fsMod.runTransaction(db, async (tx) => {
-          logEntry = null; // reset per transaction attempt
+          logEntries = []; // reset per transaction attempt
           const snap = await tx.get(boardRef);
           const st = snap.exists()
             ? { ...SimchaLogic.defaultState(), ...snap.data() }
@@ -805,18 +805,26 @@
           const isCallList = params && params.list === 'calls';
           const beforeCur = isCallList ? st.currentCall : st.currentArrival;
           const beforeId = beforeCur && beforeCur.id;
+          const beforeQLen = (isCallList ? st.callQueue : st.queue).length;
           if (!SimchaLogic.applyAction(st, action, params || {})) throw new Error('Unknown action');
           if (action === 'next' || action === 'show') {
             const cur = isCallList ? st.currentCall : st.currentArrival;
             if (cur && cur.id !== beforeId) {
-              logEntry = { name: cur.name, type: isCallList ? 'call' : 'arrival' };
+              logEntries.push({ name: cur.name, type: isCallList ? 'call' : 'arrival' });
+            }
+          } else if (action === 'add') {
+            // Archive every name the moment it's entered — even if the queue
+            // were ever lost, nothing typed is ever without a record.
+            const q = isCallList ? st.callQueue : st.queue;
+            for (const item of q.slice(beforeQLen)) {
+              logEntries.push({ name: item.name, type: isCallList ? 'call-queued' : 'queued' });
             }
           }
           tx.set(boardRef, st);
         }).then((r) => {
           serverContact();
-          if (logEntry) {
-            fsMod.addDoc(logCol, { ...logEntry, at: fsMod.serverTimestamp() }).catch(() => {});
+          for (const e of logEntries) {
+            fsMod.addDoc(logCol, { ...e, at: fsMod.serverTimestamp() }).catch(() => {});
           }
           return r;
         });
@@ -918,11 +926,16 @@
             const rows = [];
             qs.forEach((d) => rows.push(d.data()));
             $('log-count').textContent = `(${rows.length}${rows.length === 200 ? '+' : ''})`;
+            const LOG_LABEL = {
+              call: 'Counselor: ',
+              queued: 'Added to queue: ',
+              'call-queued': 'Added counselor: ',
+            };
             $('log-list').innerHTML = rows.map((r) => {
               const ms = r.at && typeof r.at.toMillis === 'function' ? r.at.toMillis()
                 : (typeof r.at === 'number' ? r.at : null);
               return `<li class="hist-item">
-                <span class="name">${r.type === 'call' ? 'Counselor: ' : ''}${esc(String(r.name || ''))}</span>
+                <span class="name">${LOG_LABEL[r.type] || ''}${esc(String(r.name || ''))}</span>
                 <span class="time">${ms ? fmtTime(ms) : ''}</span>
               </li>`;
             }).join('');
@@ -1152,10 +1165,15 @@
 
   // ---- Reset ----------------------------------------------------------------------
   $('btn-clear-queue').addEventListener('click', () => {
-    if (confirm('Remove ALL names from the queue?')) api('reset', { scope: 'queue' });
+    const n = (state ? state.queue.length + (state.callQueue || []).length : 0);
+    if (confirm(`Remove ALL ${n} waiting name${n === 1 ? '' : 's'} (campers AND counselor calls)?`)) {
+      api('reset', { scope: 'queue' });
+    }
   });
   $('btn-clear-hist').addEventListener('click', () => {
-    if (confirm('Clear the announced history?')) api('reset', { scope: 'announced' });
+    if (confirm('Clear the announced history? (The Permanent log keeps its records either way.)')) {
+      api('reset', { scope: 'announced' });
+    }
   });
   $('btn-reset').addEventListener('click', () => {
     if (confirm('Reset EVERYTHING? This clears the queue, history, and the screen.')) {
