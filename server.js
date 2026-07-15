@@ -31,7 +31,10 @@ const defaultState = () => ({
   idleMessage: 'Waiting for the next arrival',
   showUpNext: true,
   theme: 'dark',          // 'dark' | 'light' — light is for outdoor daylight
-  current: null,          // { type: 'arrival'|'call', id, name, at } on the big screen
+  // The screen has two independent slots: an arrival and a counselor call
+  // can be shown at the same time, each in its own section.
+  currentArrival: null,   // { id, name, at } arrival on screen
+  currentCall: null,      // { id, name, at } counselor call on screen
   queue: [],              // arrivals waiting to be announced [{ id, name }]
   announced: [],          // arrivals already announced [{ id, name, at }] (newest first)
   callQueue: [],          // counselor calls waiting [{ id, name }]
@@ -44,8 +47,8 @@ const defaultState = () => ({
 // The two announcement channels share all queue mechanics; either one's
 // "next"/"show" takes over the single screen (state.current).
 const LISTS = {
-  arrivals: { q: 'queue', a: 'announced', type: 'arrival' },
-  calls: { q: 'callQueue', a: 'callAnnounced', type: 'call' },
+  arrivals: { q: 'queue', a: 'announced', cur: 'currentArrival' },
+  calls: { q: 'callQueue', a: 'callAnnounced', cur: 'currentCall' },
 };
 const listOf = (name) => LISTS[name] || LISTS.arrivals;
 
@@ -122,20 +125,6 @@ function changed() {
 
 const cleanName = (s) => String(s || '').replace(/\s+/g, ' ').trim().slice(0, 120);
 
-// Most recently shown entry across both channels (for Back / re-show).
-function newestShown() {
-  const a = state.announced[0];
-  const c = state.callAnnounced[0];
-  if (a && c) return (a.at >= c.at ? a : c);
-  return a || c || null;
-}
-const asCurrent = (entry, type) => ({ type, id: entry.id, name: entry.name, at: entry.at });
-const newestAsCurrent = () => {
-  const n = newestShown();
-  if (!n) return null;
-  return asCurrent(n, state.announced[0] === n ? 'arrival' : 'call');
-};
-
 // Set by restore(); any other action cancels it (see restore).
 let lastRestore = null;
 
@@ -208,10 +197,10 @@ const actions = {
     const item = state[L.q].shift();
     const entry = { id: item.id, name: item.name, at: Date.now() };
     state[L.a].unshift(entry);
-    state.current = asCurrent(entry, L.type);
+    state[L.cur] = entry;
   },
 
-  /** Put a specific queued name on the screen immediately. */
+  /** Put a specific queued name in its screen slot immediately. */
   show({ id, list }) {
     const L = listOf(list);
     const i = state[L.q].findIndex((q) => q.id === id);
@@ -219,28 +208,41 @@ const actions = {
     const [item] = state[L.q].splice(i, 1);
     const entry = { id: item.id, name: item.name, at: Date.now() };
     state[L.a].unshift(entry);
-    state.current = asCurrent(entry, L.type);
+    state[L.cur] = entry;
   },
 
   /**
-   * Go back one step. If something is on screen, undo it (back to the front
-   * of its own queue) and re-show whatever was on screen before it — from
-   * either channel. If the screen is blank, re-show the most recent entry.
+   * Go back one step: undo the most recently shown entry (whichever slot is
+   * newer) back to the front of its queue, and re-show that channel's
+   * previous entry. If both slots are blank, re-show the most recent entry
+   * from either history.
    */
   prev() {
-    if (state.current) {
-      const L = state.current.type === 'call' ? LISTS.calls : LISTS.arrivals;
+    const a = state.currentArrival;
+    const c = state.currentCall;
+    let L = null;
+    if (a && c) L = a.at >= c.at ? LISTS.arrivals : LISTS.calls;
+    else if (a) L = LISTS.arrivals;
+    else if (c) L = LISTS.calls;
+    if (L) {
       const undone = state[L.a].shift();
       if (undone) state[L.q].unshift({ id: undone.id, name: undone.name });
-      state.current = newestAsCurrent();
+      state[L.cur] = state[L.a][0] ? { ...state[L.a][0] } : null;
     } else {
-      state.current = newestAsCurrent();
+      const la = state.announced[0];
+      const lc = state.callAnnounced[0];
+      if (!la && !lc) return;
+      const useCalls = !la || (lc && lc.at > la.at);
+      const Lx = useCalls ? LISTS.calls : LISTS.arrivals;
+      state[Lx.cur] = { ...state[Lx.a][0] };
     }
   },
 
-  /** Blank the big screen (the entry stays in its history). */
-  clearScreen() {
-    state.current = null;
+  /** Blank the screen — one slot or both (entries stay in their history). */
+  clearScreen({ target } = {}) {
+    if (target === 'arrival') state.currentArrival = null;
+    else if (target === 'call') state.currentCall = null;
+    else { state.currentArrival = null; state.currentCall = null; }
   },
 
   /** Put an announced/called name back at the front of its queue. */
@@ -249,9 +251,7 @@ const actions = {
     const i = state[L.a].findIndex((a) => a.id === id);
     if (i < 0) return;
     const [item] = state[L.a].splice(i, 1);
-    if (state.current && state.current.id === id && state.current.type === L.type) {
-      state.current = null;
-    }
+    if (state[L.cur] && state[L.cur].id === id) state[L.cur] = null;
     state[L.q].unshift({ id: item.id, name: item.name });
   },
 
@@ -266,7 +266,8 @@ const actions = {
     // for 60s after a restore, a strictly NEWER backup may replace it (so a
     // display that was offline with an old cache can't win over a fresh one).
     // Any other action cancels the window, so live edits are never undone.
-    const empty = !state.current && !state.queue.length && !state.announced.length
+    const empty = !state.currentArrival && !state.currentCall
+      && !state.queue.length && !state.announced.length
       && !state.callQueue.length && !state.callAnnounced.length;
     const backupAt = Number(at) || 0;
     if (!empty) {
@@ -293,13 +294,12 @@ const actions = {
     if (Array.isArray(callQueue)) state.callQueue = queueOf(callQueue);
     if (Array.isArray(callAnnounced)) state.callAnnounced = historyOf(callAnnounced);
     // Re-show exactly what was on screen before the server lost its data.
-    if (showCurrent === 'call' && state.callAnnounced[0]) {
-      state.current = asCurrent(state.callAnnounced[0], 'call');
-    } else if (showCurrent === 'arrival' && state.announced[0]) {
-      state.current = asCurrent(state.announced[0], 'arrival');
-    } else {
-      state.current = null;
-    }
+    // showCurrent: { arrival: bool, call: bool } (legacy string also accepted).
+    const sc = showCurrent || {};
+    const wantArrival = sc === 'arrival' || sc.arrival;
+    const wantCall = sc === 'call' || sc.call;
+    state.currentArrival = wantArrival && state.announced[0] ? { ...state.announced[0] } : null;
+    state.currentCall = wantCall && state.callAnnounced[0] ? { ...state.callAnnounced[0] } : null;
     actions.settings({ title, idleMessage, showUpNext, theme });
   },
 

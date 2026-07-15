@@ -72,14 +72,24 @@
   }
   h2 .count { font-weight: 400; color: #666; }
 
-  /* Now showing */
-  #now-name {
-    font-size: 26px;
+  /* Now showing: one row per screen slot */
+  .now-row { display: flex; align-items: center; gap: 10px; padding: 4px 0; }
+  .now-label {
+    width: 78px;
+    flex-shrink: 0;
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    color: #666;
+  }
+  .now-label.call { color: #b25a00; }
+  .now-val {
+    flex: 1;
+    font-size: 20px;
     font-weight: 700;
     line-height: 1.2;
-    overflow-wrap: break-word;
+    overflow-wrap: anywhere;
   }
-  #now-name.empty { color: #888; font-weight: 400; font-size: 15px; }
 
   /* Buttons */
   button {
@@ -275,8 +285,18 @@
       </div>
     </div>
     <section>
-      <h2>Now on screen <span class="count" id="now-type"></span></h2>
-      <div id="now-name" class="empty">Nothing — screen is on standby</div>
+      <h2>Now on screen</h2>
+      <div class="now-row" id="now-arrival-row" hidden>
+        <span class="now-label">Arrival</span>
+        <span class="now-val" id="now-arrival"></span>
+        <button class="small" id="clear-arrival" title="Take the arrival off the screen">Clear</button>
+      </div>
+      <div class="now-row" id="now-call-row" hidden>
+        <span class="now-label call">Counselor</span>
+        <span class="now-val" id="now-call"></span>
+        <button class="small" id="clear-call" title="Take the counselor call off the screen">Clear</button>
+      </div>
+      <div id="now-empty" class="empty-note">Nothing — screen is on standby</div>
     </section>
 
     <section>
@@ -422,17 +442,14 @@
       screens.classList.remove('warn');
     }
 
-    // Now showing
-    const nowName = $('now-name');
-    const isCall = state.current && state.current.type === 'call';
-    $('now-type').textContent = state.current ? (isCall ? 'counselor call' : 'arrival') : '';
-    if (state.current) {
-      nowName.textContent = state.current.name;
-      nowName.classList.remove('empty');
-    } else {
-      nowName.textContent = 'Nothing — screen is on standby';
-      nowName.classList.add('empty');
-    }
+    // Now showing: two independent slots
+    const arrival = state.currentArrival;
+    const call = state.currentCall;
+    $('now-arrival-row').hidden = !arrival;
+    $('now-call-row').hidden = !call;
+    $('now-empty').style.display = arrival || call ? 'none' : 'block';
+    if (arrival) $('now-arrival').textContent = arrival.name;
+    if (call) $('now-call').textContent = call.name;
 
     const queueItems = (items, list) => items.map((q, i) => `
       <li class="item ${i === 0 ? 'next-up' : ''}" data-id="${q.id}" data-list="${list}">
@@ -448,12 +465,12 @@
       </li>`).join('');
 
     const histItems = (items, list) => {
-      const curId = state.current && state.current.id;
-      const curList = isCall ? 'calls' : 'arrivals';
+      const cur = list === 'calls' ? call : arrival;
+      const curId = cur && cur.id;
       return items.map((a) => `
         <li class="hist-item" data-id="${a.id}" data-list="${list}">
           <span class="name">${esc(a.name)}</span>
-          <span class="time">${fmtTime(a.at)}${a.id === curId && list === curList ? ' · on screen' : ''}</span>
+          <span class="time">${fmtTime(a.at)}${a.id === curId ? ' · on screen' : ''}</span>
           <button class="small" data-act="requeue" title="Show again">Re-queue</button>
         </li>`).join('');
     };
@@ -488,7 +505,7 @@
     $('btn-next').disabled = !next;
     $('btn-next-sub').textContent = next ? next.name : 'queue is empty';
     $('btn-prev').disabled = state.announced.length === 0 && callA.length === 0;
-    $('btn-clear').disabled = !state.current;
+    $('btn-clear').disabled = !arrival && !call;
 
     // Settings (don't clobber fields while the user is typing)
     if (!editingSettings) {
@@ -513,7 +530,8 @@
     || b.callQueue?.length || b.callAnnounced?.length);
 
   function updateBackup() {
-    const hasData = state.queue.length || state.announced.length || state.current
+    const hasData = state.queue.length || state.announced.length
+      || state.currentArrival || state.currentCall
       || (state.callQueue || []).length || (state.callAnnounced || []).length;
     if (hasData) {
       autoRestoreTried = false;
@@ -524,7 +542,8 @@
           announced: state.announced,
           callQueue: state.callQueue || [],
           callAnnounced: state.callAnnounced || [],
-          current: state.current,
+          currentArrival: state.currentArrival,
+          currentCall: state.currentCall,
           title: state.title,
           idleMessage: state.idleMessage,
           showUpNext: state.showUpNext,
@@ -547,7 +566,7 @@
     if (!state.lastActivityAt && !autoRestoreTried
         && Date.now() - backup.at < 24 * 3600 * 1000) {
       autoRestoreTried = true;
-      api('restore', { ...backup, showCurrent: backup.current && backup.current.type })
+      api('restore', { ...backup, showCurrent: { arrival: !!backup.currentArrival, call: !!backup.currentCall } })
         .then((ok) => { if (ok) toast('Server was empty — restored from this phone’s backup'); });
       return;
     }
@@ -564,7 +583,7 @@
     if (!backup) return;
     restoreDismissed = true;
     $('restore-banner').classList.remove('show');
-    if (await api('restore', { ...backup, showCurrent: backup.current && backup.current.type })) {
+    if (await api('restore', { ...backup, showCurrent: { arrival: !!backup.currentArrival, call: !!backup.currentCall } })) {
       toast('List restored');
     }
   });
@@ -696,6 +715,8 @@
   $('btn-next').addEventListener('click', () => api('next'));
   $('btn-prev').addEventListener('click', () => api('prev'));
   $('btn-clear').addEventListener('click', () => api('clearScreen'));
+  $('clear-arrival').addEventListener('click', () => api('clearScreen', { target: 'arrival' }));
+  $('clear-call').addEventListener('click', () => api('clearScreen', { target: 'call' }));
 
   // Keyboard shortcuts when driven from a laptop
   document.addEventListener('keydown', (e) => {

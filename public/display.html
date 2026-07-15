@@ -66,6 +66,29 @@
     font-weight: 600;
   }
 
+  /* Counselor-call section shown ALONGSIDE the arrival (its own band) */
+  #callbar {
+    flex-shrink: 0;
+    background: #d97a00;
+    color: #fff;
+    text-align: center;
+    padding: 1.2vmin 4vmin;
+  }
+  #callbar .cb-label {
+    font-size: clamp(14px, 3vmin, 32px);
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: .04em;
+    opacity: .9;
+  }
+  #callbar .cb-name {
+    font-size: clamp(28px, 8vmin, 90px);
+    font-weight: 800;
+    line-height: 1.1;
+    overflow-wrap: break-word;
+  }
+  #callbar.hidden { display: none; }
+
   #name {
     font-weight: 800;
     line-height: 1.05;
@@ -179,6 +202,11 @@
     <div id="idle-sub"></div>
   </div>
 
+  <div id="callbar" class="hidden">
+    <div class="cb-label">Calling counselor — your camper is here</div>
+    <div class="cb-name"></div>
+  </div>
+
   <div id="upnext" class="hidden"></div>
 
 <script>
@@ -204,9 +232,9 @@
   // ---- Text auto-fit: biggest font size that fits the stage ----------------
   function fitText() {
     const maxW = stage.clientWidth * 0.94;
-    // The counselor-call banner + subtitle take more vertical room.
-    const isCall = state && state.current && state.current.type === 'call';
-    const maxH = stage.clientHeight * (isCall ? 0.48 : 0.62);
+    // A call alone on stage shows the banner + subtitle, which need room.
+    const callOnStage = state && state.currentCall && !state.currentArrival;
+    const maxH = stage.clientHeight * (callOnStage ? 0.48 : 0.62);
     let lo = 16, hi = 400;
     while (lo < hi) {
       const mid = Math.ceil((lo + hi) / 2);
@@ -227,17 +255,36 @@
     const themeMeta = document.querySelector('meta[name=theme-color]');
     if (themeMeta) themeMeta.content = light ? '#ffffff' : '#000000';
 
-    const isCall = state.current && state.current.type === 'call';
-    kickerEl.classList.toggle('call', !!isCall);
-    idleSubEl.classList.toggle('call', !!isCall);
-    if (state.current) {
-      kickerEl.textContent = isCall ? 'Calling counselor' : 'Now arriving';
-      idleSubEl.textContent = isCall ? 'Your camper has arrived — come to the stage' : '';
-      nameEl.textContent = state.current.name;
+    // Two independent slots: an arrival and a counselor call can be on
+    // screen at the same time, each in its own section.
+    const arrival = state.currentArrival;
+    const call = state.currentCall;
+    const callbar = document.getElementById('callbar');
+
+    // The call gets the main stage only when there's no arrival showing;
+    // otherwise it appears in its own orange band below the arrival.
+    const callOnStage = call && !arrival;
+    kickerEl.classList.toggle('call', !!callOnStage);
+    idleSubEl.classList.toggle('call', !!callOnStage);
+    if (arrival) {
+      kickerEl.textContent = 'Now arriving';
+      idleSubEl.textContent = '';
+      nameEl.textContent = arrival.name;
+    } else if (call) {
+      kickerEl.textContent = 'Calling counselor';
+      idleSubEl.textContent = 'Your camper has arrived — come to the stage';
+      nameEl.textContent = call.name;
     } else {
       kickerEl.textContent = 'Standby';
       nameEl.textContent = state.title;
       idleSubEl.textContent = state.idleMessage || '';
+    }
+
+    if (call && arrival) {
+      callbar.querySelector('.cb-name').textContent = call.name;
+      callbar.classList.remove('hidden');
+    } else {
+      callbar.classList.add('hidden');
     }
 
     // Up-next panels: arrivals and counselor calls each get one when non-empty.
@@ -296,7 +343,8 @@
   const CACHE_KEY = 'camp-simcha-display-cache';
   let autoRestoreTried = false;
 
-  const isEmptyState = (s) => !s.current && !s.queue.length && !s.announced.length
+  const isEmptyState = (s) => !s.currentArrival && !s.currentCall
+    && !s.queue.length && !s.announced.length
     && !(s.callQueue || []).length && !(s.callAnnounced || []).length;
 
   function handleState(s) {
@@ -324,7 +372,7 @@
             idleMessage: c.idleMessage,
             showUpNext: c.showUpNext,
             theme: c.theme,
-            showCurrent: c.current && c.current.type,
+            showCurrent: { arrival: !!c.currentArrival, call: !!c.currentCall },
           }),
         }).catch(() => {});
         // Keep showing the cached content; the restored state arrives next.
