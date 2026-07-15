@@ -218,10 +218,26 @@ const actions = {
         return i ? { ...i, at: Number(a.at) || Date.now() } : null;
       })
       .filter(Boolean);
+    // Queues are "future" — the newest backup knows best, so replace them.
+    // Histories are "past" — they must only ever GROW: merge incoming with
+    // whatever is already there (dedupe by name+time), so a newer backup
+    // from a phone that never announced can't wipe the announced history.
+    const mergeHistories = (incoming, existing) => {
+      const seen = new Set();
+      const merged = [];
+      for (const e of [...incoming, ...existing]) {
+        const key = e.name + '|' + e.at;
+        if (seen.has(key)) continue;
+        seen.add(key);
+        merged.push(e);
+      }
+      merged.sort((a, b) => b.at - a.at);
+      return merged.slice(0, 2000);
+    };
     if (Array.isArray(queue)) state.queue = queueOf(queue);
-    if (Array.isArray(announced)) state.announced = historyOf(announced);
+    if (Array.isArray(announced)) state.announced = mergeHistories(historyOf(announced), state.announced);
     if (Array.isArray(callQueue)) state.callQueue = queueOf(callQueue);
-    if (Array.isArray(callAnnounced)) state.callAnnounced = historyOf(callAnnounced);
+    if (Array.isArray(callAnnounced)) state.callAnnounced = mergeHistories(historyOf(callAnnounced), state.callAnnounced);
     // Re-show exactly what was on screen before the server lost its data.
     // showCurrent: { arrival: bool, call: bool } (legacy string also accepted).
     const sc = showCurrent || {};

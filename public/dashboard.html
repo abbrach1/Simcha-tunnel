@@ -362,6 +362,14 @@
       </details>
     </section>
 
+    <section id="log-section" hidden>
+      <details>
+        <summary>Permanent log <span class="count" id="log-count">(0)</span></summary>
+        <p class="hint-note">Every announcement and counselor call, saved permanently in Firestore. Resets and clears can't erase this list.</p>
+        <ul id="log-list"></ul>
+      </details>
+    </section>
+
     <section>
       <details>
         <summary>Display settings</summary>
@@ -840,9 +848,34 @@
         emit();
       }, () => { /* counts stay stale — not critical */ });
 
+      // Permanent-log panel: reads the append-only archive live, so the
+      // visible history can never be lost even if the board is cleared.
+      let unsubLog = () => {};
+      try {
+        $('log-section').hidden = false;
+        unsubLog = fsMod.onSnapshot(
+          fsMod.query(logCol, fsMod.orderBy('at', 'desc'), fsMod.limit(200)),
+          (qs) => {
+            const rows = [];
+            qs.forEach((d) => rows.push(d.data()));
+            $('log-count').textContent = `(${rows.length}${rows.length === 200 ? '+' : ''})`;
+            $('log-list').innerHTML = rows.map((r) => {
+              const ms = r.at && typeof r.at.toMillis === 'function' ? r.at.toMillis()
+                : (typeof r.at === 'number' ? r.at : null);
+              return `<li class="hist-item">
+                <span class="name">${r.type === 'call' ? 'Counselor: ' : ''}${esc(String(r.name || ''))}</span>
+                <span class="time">${ms ? fmtTime(ms) : ''}</span>
+              </li>`;
+            }).join('');
+          },
+          () => { /* panel just stays as-is */ },
+        );
+      } catch { /* query unsupported — panel stays hidden */ }
+
       fbCleanup = () => {
         try { unsubBoard(); } catch { /* ignore */ }
         try { unsubClients(); } catch { /* ignore */ }
+        try { unsubLog(); } catch { /* ignore */ }
         clearInterval(beatTimer);
         if (appMod.deleteApp) appMod.deleteApp(app).catch(() => {});
       };
