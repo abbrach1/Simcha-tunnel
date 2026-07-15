@@ -409,14 +409,16 @@
   function render() {
     if (!state) return;
 
-    // Connected screens indicator
+    // Connected screens indicator (+ other admins on at the same time)
     const d = state.clients ? state.clients.displays : 0;
+    const admins = state.clients ? state.clients.dashboards : 1;
+    const others = admins > 1 ? ` · ${admins} admins on` : '';
     const screens = $('screens');
     if (d === 0) {
-      screens.textContent = 'No display connected — open /display on the stage phone';
+      screens.textContent = 'No display connected — open /display on the stage phone' + others;
       screens.classList.add('warn');
     } else {
-      screens.textContent = `${d} display${d > 1 ? 's' : ''} connected`;
+      screens.textContent = `${d} display${d > 1 ? 's' : ''} connected${others}`;
       screens.classList.remove('warn');
     }
 
