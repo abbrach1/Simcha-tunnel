@@ -3,5 +3,13 @@
     { "source": "/", "destination": "/chooser.html" },
     { "source": "/dashboard", "destination": "/dashboard.html" },
     { "source": "/display", "destination": "/display.html" }
+  ],
+  "headers": [
+    {
+      "source": "/(|dashboard|display|chooser.html|dashboard.html|display.html|logic.js|firebase-config.js)",
+      "headers": [
+        { "key": "Cache-Control", "value": "no-store, must-revalidate" }
+      ]
+    }
   ]
 }

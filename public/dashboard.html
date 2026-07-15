@@ -955,6 +955,36 @@
     if (document.visibilityState === 'visible') reconnectNow();
   });
 
+  // ---- Self-update -----------------------------------------------------------
+  // A page left open for days keeps running whatever version it loaded,
+  // missing every fix that ships later. Compare the currently-served page
+  // against the copy we booted with, and reload once (rate-limited) when
+  // the deployment changes.
+  let pageBaseline = null;
+  async function checkForUpdate() {
+    try {
+      const r = await fetch(location.pathname + location.search, { cache: 'no-store' });
+      if (!r.ok) return;
+      const text = await r.text();
+      if (pageBaseline === null) {
+        pageBaseline = text;
+        return;
+      }
+      if (text !== pageBaseline) {
+        const last = Number(sessionStorage.getItem('simcha-reload-at') || 0);
+        if (Date.now() - last > 10 * 60 * 1000) {
+          sessionStorage.setItem('simcha-reload-at', String(Date.now()));
+          location.reload();
+        }
+      }
+    } catch { /* offline — try again later */ }
+  }
+  checkForUpdate();
+  setInterval(checkForUpdate, 5 * 60 * 1000);
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') checkForUpdate();
+  });
+
   // ---- Add names ----------------------------------------------------------------
   $('add-form').addEventListener('submit', (e) => {
     e.preventDefault();
