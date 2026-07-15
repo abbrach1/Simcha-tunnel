@@ -209,6 +209,8 @@
 
   <div id="upnext" class="hidden"></div>
 
+<script src="logic.js"></script>
+<script src="firebase-config.js"></script>
 <script>
 (() => {
   'use strict';
@@ -357,6 +359,87 @@
     pollNow();
   }
 
+  // ---- Firebase mode ------------------------------------------------------------
+  // When the host has no SSE (static hosting / Vercel) and a Firebase project
+  // is configured, sync through Firestore instead: real push updates, no
+  // server at all. Actions run as Firestore transactions using the same
+  // shared logic (window.SimchaLogic).
+  let fbActive = false;
+  let fbApply = null;
+
+  function applyRemote(action, params) {
+    if (fbApply) return fbApply(action, params).catch(() => {});
+    return fetch('/api/' + action, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(params),
+    }).catch(() => {});
+  }
+
+  async function startFirebase() {
+    if (fbActive) return;
+    fbActive = true;
+    clearTimeout(retryTimer);
+    if (es) {
+      es.onerror = null;
+      es.onmessage = null;
+      try { es.close(); } catch { /* ignore */ }
+    }
+    try {
+      const SDK = window.FIREBASE_SDK_BASE || 'https://www.gstatic.com/firebasejs/10.12.2';
+      const [appMod, fsMod] = await Promise.all([
+        import(SDK + '/firebase-app.js'),
+        import(SDK + '/firebase-firestore.js'),
+      ]);
+      const app = appMod.initializeApp(window.FIREBASE_CONFIG);
+      const db = fsMod.getFirestore(app);
+      const boardRef = fsMod.doc(db, 'boards', 'main');
+      let counts = { displays: 0, dashboards: 0 };
+      let latest = null;
+      const emit = () => { if (latest) handleState({ ...latest, clients: counts }); };
+
+      fbApply = (action, params) => fsMod.runTransaction(db, async (tx) => {
+        const snap = await tx.get(boardRef);
+        const st = snap.exists()
+          ? { ...SimchaLogic.defaultState(), ...snap.data() }
+          : SimchaLogic.defaultState();
+        if (!SimchaLogic.applyAction(st, action, params || {})) throw new Error('Unknown action');
+        tx.set(boardRef, st);
+      });
+
+      fsMod.onSnapshot(boardRef, { includeMetadataChanges: true }, (snap) => {
+        latest = snap.data() || SimchaLogic.defaultState();
+        lastSeen = Date.now();
+        setStatus(!snap.metadata.fromCache);
+        emit();
+      }, () => setStatus(false));
+
+      // Presence heartbeat so dashboards can count connected displays.
+      const meRef = fsMod.doc(db, 'boards', 'main', 'clients', clientId);
+      const beat = () => fsMod.setDoc(meRef, { role: 'display', ts: Date.now() }).catch(() => {});
+      beat();
+      setInterval(beat, 10000);
+      fsMod.onSnapshot(fsMod.collection(db, 'boards', 'main', 'clients'), (qs) => {
+        const now = Date.now();
+        const next = { displays: 0, dashboards: 0 };
+        qs.forEach((d) => {
+          const c = d.data();
+          if (c && now - c.ts < 30000) {
+            if (c.role === 'display') next.displays++;
+            else if (c.role === 'dashboard') next.dashboards++;
+          }
+        });
+        counts = next;
+        emit();
+      }, () => { /* counts stay stale — not critical */ });
+    } catch {
+      // SDK failed to load — degrade to polling against /api.
+      fbActive = false;
+      fbApply = null;
+      startPolling();
+    }
+  }
+
   function setStatus(online) {
     statusEl.classList.toggle('offline', !online);
     statusText.textContent = online ? 'Live' : 'Reconnecting…';
@@ -392,22 +475,18 @@
       if (cached && cached.state && Date.now() - cached.at < 24 * 3600 * 1000) {
         autoRestoreTried = true;
         const c = cached.state;
-        fetch('/api/restore', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            at: cached.at,
-            queue: c.queue,
-            announced: c.announced,
-            callQueue: c.callQueue,
-            callAnnounced: c.callAnnounced,
-            title: c.title,
-            idleMessage: c.idleMessage,
-            showUpNext: c.showUpNext,
-            theme: c.theme,
-            showCurrent: { arrival: !!c.currentArrival, call: !!c.currentCall },
-          }),
-        }).catch(() => {});
+        applyRemote('restore', {
+          at: cached.at,
+          queue: c.queue,
+          announced: c.announced,
+          callQueue: c.callQueue,
+          callAnnounced: c.callAnnounced,
+          title: c.title,
+          idleMessage: c.idleMessage,
+          showUpNext: c.showUpNext,
+          theme: c.theme,
+          showCurrent: { arrival: !!c.currentArrival, call: !!c.currentCall },
+        });
         // Keep showing the cached content; the restored state arrives next.
         state = c;
         render();
@@ -445,7 +524,8 @@
       setStatus(false);
       try { es.close(); } catch { /* ignore */ }
       if (++sseFailures >= 3) {
-        startPolling();
+        if (window.FIREBASE_CONFIG) startFirebase();
+        else startPolling();
         return;
       }
       clearTimeout(retryTimer);
@@ -456,6 +536,7 @@
   connect();
 
   function reconnectNow() {
+    if (fbActive) return; // the Firestore SDK reconnects on its own
     if (polling) {
       pollNow();
       return;
@@ -468,7 +549,7 @@
   // the connection died without firing an error — rebuild it. (Polling mode
   // has its own success/failure signal on every poll.)
   setInterval(() => {
-    if (!polling && lastSeen && Date.now() - lastSeen > 30000) {
+    if (!polling && !fbActive && lastSeen && Date.now() - lastSeen > 30000) {
       setStatus(false);
       reconnectNow();
     }

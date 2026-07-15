@@ -121,6 +121,33 @@ Two more tips for the stage phone:
   instantly (SSE), and simultaneous admin actions stay safe via a
   compare-and-swap write loop in Redis. The long-running `server.js` is
   still there for local / Render use — same features, same pages.
+- **Firebase (recommended for static hosting)**: if `public/firebase-config.js`
+  contains a Firebase web config, any host that can serve static files works —
+  including Vercel with **no** Redis integration — and you get **instant push
+  updates** via Firestore instead of polling. The pages try SSE first (so the
+  Node server keeps working unchanged), and fall back to Firestore when
+  there's no SSE endpoint. Actions run as Firestore transactions using the
+  same shared logic, so simultaneous admins stay safe; state persists in
+  Firestore. Setup:
+  1. In the [Firebase console](https://console.firebase.google.com), create a
+     project and a **Cloud Firestore** database.
+  2. Paste the web app config into `public/firebase-config.js`.
+  3. Set the Firestore security rules (test-mode rules expire after 30 days —
+     set these so the board keeps working):
+
+     ```
+     rules_version = '2';
+     service cloud.firestore {
+       match /databases/{database}/documents {
+         match /boards/main { allow read, write: if true; }
+         match /boards/main/clients/{id} { allow read, write: if true; }
+       }
+     }
+     ```
+
+     This allows exactly the two paths the board uses and nothing else.
+     Like the rest of the app, access control is "anyone with the URL" —
+     the web config is a public identifier, not a secret.
 
 ## How it works
 
@@ -134,6 +161,10 @@ Two more tips for the stage phone:
   state in Redis (Upstash / Vercel KV), compare-and-swap writes, and
   heartbeat-based connected-device counts. The frontend detects the missing
   SSE endpoint and polls `GET /api/state` instead.
+- `public/firebase-config.js` — optional Firebase project config. When set
+  and SSE is unavailable, the pages sync through Firestore directly
+  (document `boards/main`, presence heartbeats in `boards/main/clients`),
+  loading the SDK from Google's CDN. Priority: SSE → Firebase → polling.
 - `public/dashboard.html` — the control UI (self-contained HTML/CSS/JS).
 - `public/display.html` — the stage screen (self-contained HTML/CSS/JS).
 - `public/chooser.html` — role picker served at `/`.

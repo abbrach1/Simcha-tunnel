@@ -386,6 +386,8 @@
 
   <div id="toast"></div>
 
+<script src="logic.js"></script>
+<script src="firebase-config.js"></script>
 <script>
 (() => {
   'use strict';
@@ -397,6 +399,10 @@
   // ---- API helpers -----------------------------------------------------------
   async function api(action, params = {}) {
     try {
+      if (fbApply) {
+        await fbApply(action, params);
+        return true;
+      }
       const res = await fetch('/api/' + action, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -644,6 +650,83 @@
     pollNow();
   }
 
+  // ---- Firebase mode ------------------------------------------------------------
+  // When the host has no SSE (static hosting / Vercel) and a Firebase project
+  // is configured, sync through Firestore instead: real push updates, no
+  // server at all. Actions run as Firestore transactions using the same
+  // shared logic (window.SimchaLogic).
+  let fbActive = false;
+  let fbApply = null;
+
+  async function startFirebase() {
+    if (fbActive) return;
+    fbActive = true;
+    clearTimeout(retryTimer);
+    if (es) {
+      es.onerror = null;
+      es.onmessage = null;
+      try { es.close(); } catch { /* ignore */ }
+    }
+    try {
+      const SDK = window.FIREBASE_SDK_BASE || 'https://www.gstatic.com/firebasejs/10.12.2';
+      const [appMod, fsMod] = await Promise.all([
+        import(SDK + '/firebase-app.js'),
+        import(SDK + '/firebase-firestore.js'),
+      ]);
+      const app = appMod.initializeApp(window.FIREBASE_CONFIG);
+      const db = fsMod.getFirestore(app);
+      const boardRef = fsMod.doc(db, 'boards', 'main');
+      let counts = { displays: 0, dashboards: 0 };
+      let latest = null;
+      const emit = () => {
+        if (!latest) return;
+        state = { ...latest, clients: counts };
+        render();
+        updateBackup();
+      };
+
+      fbApply = (action, params) => fsMod.runTransaction(db, async (tx) => {
+        const snap = await tx.get(boardRef);
+        const st = snap.exists()
+          ? { ...SimchaLogic.defaultState(), ...snap.data() }
+          : SimchaLogic.defaultState();
+        if (!SimchaLogic.applyAction(st, action, params || {})) throw new Error('Unknown action');
+        tx.set(boardRef, st);
+      });
+
+      fsMod.onSnapshot(boardRef, { includeMetadataChanges: true }, (snap) => {
+        latest = snap.data() || SimchaLogic.defaultState();
+        lastSeen = Date.now();
+        setConn(!snap.metadata.fromCache);
+        emit();
+      }, () => setConn(false));
+
+      // Presence heartbeat so everyone can count displays and admins.
+      const meRef = fsMod.doc(db, 'boards', 'main', 'clients', clientId);
+      const beat = () => fsMod.setDoc(meRef, { role: 'dashboard', ts: Date.now() }).catch(() => {});
+      beat();
+      setInterval(beat, 10000);
+      fsMod.onSnapshot(fsMod.collection(db, 'boards', 'main', 'clients'), (qs) => {
+        const now = Date.now();
+        const next = { displays: 0, dashboards: 0 };
+        qs.forEach((d) => {
+          const c = d.data();
+          if (c && now - c.ts < 30000) {
+            if (c.role === 'display') next.displays++;
+            else if (c.role === 'dashboard') next.dashboards++;
+          }
+        });
+        counts = next;
+        emit();
+      }, () => { /* counts stay stale — not critical */ });
+    } catch {
+      // SDK failed to load — degrade to polling against /api.
+      fbActive = false;
+      fbApply = null;
+      startPolling();
+    }
+  }
+
   function connect() {
     clearTimeout(retryTimer);
     if (es) {
@@ -659,7 +742,8 @@
       setConn(false);
       try { es.close(); } catch { /* ignore */ }
       if (++sseFailures >= 3) {
-        startPolling();
+        if (window.FIREBASE_CONFIG) startFirebase();
+        else startPolling();
         return;
       }
       clearTimeout(retryTimer);
@@ -670,6 +754,7 @@
   connect();
 
   function reconnectNow() {
+    if (fbActive) return; // the Firestore SDK reconnects on its own
     if (polling) {
       pollNow();
       return;
@@ -682,7 +767,7 @@
   // the connection died without firing an error — rebuild it. (Polling mode
   // has its own success/failure signal on every poll.)
   setInterval(() => {
-    if (!polling && lastSeen && Date.now() - lastSeen > 30000) {
+    if (!polling && !fbActive && lastSeen && Date.now() - lastSeen > 30000) {
       setConn(false);
       reconnectNow();
     }
