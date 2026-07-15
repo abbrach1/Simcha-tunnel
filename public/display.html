@@ -1,0 +1,290 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#0b1026">
+<title>Simcha Arrivals — Display</title>
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  html, body {
+    height: 100%;
+    overflow: hidden;
+    background: #0b1026;
+    color: #fff;
+    font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    -webkit-user-select: none;
+    user-select: none;
+  }
+
+  body {
+    background:
+      radial-gradient(1200px 600px at 20% -10%, rgba(88, 101, 242, .35), transparent 60%),
+      radial-gradient(1000px 500px at 90% 110%, rgba(255, 183, 3, .18), transparent 60%),
+      #0b1026;
+  }
+
+  #stage {
+    position: fixed;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: max(4vmin, env(safe-area-inset-top)) 4vmin max(4vmin, env(safe-area-inset-bottom));
+    text-align: center;
+    cursor: pointer;
+  }
+
+  #kicker {
+    font-size: clamp(14px, 3.2vmin, 34px);
+    font-weight: 700;
+    letter-spacing: .35em;
+    text-transform: uppercase;
+    color: #ffd166;
+    opacity: .95;
+    margin-bottom: 2.5vmin;
+  }
+
+  #name {
+    font-weight: 900;
+    line-height: 1.05;
+    max-width: 96vw;
+    overflow-wrap: break-word;
+    text-shadow: 0 4px 40px rgba(0,0,0,.55);
+  }
+
+  #name.entering { animation: pop .45s cubic-bezier(.2, 1.4, .4, 1); }
+  @keyframes pop {
+    0%   { transform: scale(.6); opacity: 0; }
+    100% { transform: scale(1);  opacity: 1; }
+  }
+
+  #idle-sub {
+    margin-top: 3vmin;
+    font-size: clamp(16px, 4vmin, 42px);
+    color: rgba(255,255,255,.85);
+    font-weight: 500;
+  }
+
+  #upnext {
+    position: fixed;
+    left: 0; right: 0;
+    bottom: max(0px, env(safe-area-inset-bottom));
+    padding: 1.6vmin 4vmin;
+    text-align: center;
+    font-size: clamp(13px, 2.8vmin, 30px);
+    color: rgba(255,255,255,.75);
+    background: rgba(0,0,0,.35);
+    backdrop-filter: blur(6px);
+  }
+  #upnext b { color: #ffd166; font-weight: 800; }
+  #upnext.hidden { display: none; }
+
+  #status {
+    position: fixed;
+    top: max(10px, env(safe-area-inset-top));
+    right: 12px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 13px;
+    color: rgba(255,255,255,.6);
+    padding: 6px 12px;
+    border-radius: 999px;
+    background: rgba(0,0,0,.35);
+    transition: opacity .5s;
+  }
+  #status .dot {
+    width: 10px; height: 10px;
+    border-radius: 50%;
+    background: #2ecc71;
+  }
+  #status.offline .dot { background: #e74c3c; animation: blink 1s infinite; }
+  @keyframes blink { 50% { opacity: .25; } }
+  #status.faded { opacity: 0; pointer-events: none; }
+
+  #hint {
+    position: fixed;
+    left: 0; right: 0;
+    top: max(12px, env(safe-area-inset-top));
+    text-align: center;
+    font-size: 13px;
+    color: rgba(255,255,255,.45);
+    transition: opacity 1s;
+  }
+  #hint.faded { opacity: 0; }
+
+  /* Confetti burst on each new name */
+  .confetti {
+    position: fixed;
+    top: -20px;
+    width: 10px; height: 16px;
+    border-radius: 2px;
+    pointer-events: none;
+    animation: fall linear forwards;
+  }
+  @keyframes fall {
+    to { transform: translateY(110vh) rotate(720deg); opacity: .9; }
+  }
+</style>
+</head>
+<body>
+  <div id="hint">Tap anywhere for fullscreen</div>
+  <div id="status" class="offline"><span class="dot"></span><span id="status-text">Connecting…</span></div>
+
+  <div id="stage">
+    <div id="kicker">Welcome</div>
+    <div id="name">…</div>
+    <div id="idle-sub"></div>
+  </div>
+
+  <div id="upnext" class="hidden"></div>
+
+<script>
+(() => {
+  'use strict';
+
+  const $ = (id) => document.getElementById(id);
+  const stage = $('stage');
+  const kickerEl = $('kicker');
+  const nameEl = $('name');
+  const idleSubEl = $('idle-sub');
+  const upnextEl = $('upnext');
+  const statusEl = $('status');
+  const statusText = $('status-text');
+  const hintEl = $('hint');
+
+  let lastShownId = null;
+  let state = null;
+
+  // ---- Text auto-fit: biggest font size that fits the stage ----------------
+  function fitText() {
+    const maxW = stage.clientWidth * 0.94;
+    const maxH = stage.clientHeight * 0.62;
+    let lo = 16, hi = 400;
+    while (lo < hi) {
+      const mid = Math.ceil((lo + hi) / 2);
+      nameEl.style.fontSize = mid + 'px';
+      if (nameEl.scrollWidth <= maxW && nameEl.scrollHeight <= maxH) lo = mid;
+      else hi = mid - 1;
+    }
+    nameEl.style.fontSize = lo + 'px';
+  }
+
+  // ---- Confetti -------------------------------------------------------------
+  const COLORS = ['#ffd166', '#ef476f', '#06d6a0', '#118ab2', '#f78c6b', '#a78bfa'];
+  function confetti() {
+    if (matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    for (let i = 0; i < 60; i++) {
+      const p = document.createElement('div');
+      p.className = 'confetti';
+      p.style.left = Math.random() * 100 + 'vw';
+      p.style.background = COLORS[i % COLORS.length];
+      p.style.animationDuration = (2.2 + Math.random() * 1.8) + 's';
+      p.style.animationDelay = (Math.random() * 0.4) + 's';
+      p.style.transform = `rotate(${Math.random() * 360}deg)`;
+      document.body.appendChild(p);
+      setTimeout(() => p.remove(), 5000);
+    }
+  }
+
+  // ---- Render ----------------------------------------------------------------
+  function render() {
+    if (!state) return;
+    document.title = state.title + ' — Display';
+
+    if (state.current) {
+      kickerEl.textContent = 'Now arriving';
+      idleSubEl.textContent = '';
+      nameEl.textContent = state.current.name;
+      if (state.current.id !== lastShownId) {
+        lastShownId = state.current.id;
+        nameEl.classList.remove('entering');
+        void nameEl.offsetWidth; // restart animation
+        nameEl.classList.add('entering');
+        confetti();
+      }
+    } else {
+      lastShownId = null;
+      kickerEl.textContent = 'Welcome';
+      nameEl.textContent = state.title;
+      idleSubEl.textContent = state.idleMessage || '';
+    }
+
+    if (state.showUpNext && state.queue.length > 0) {
+      const next = state.queue[0].name;
+      const more = state.queue.length - 1;
+      upnextEl.innerHTML = 'Up next: <b></b>' + (more > 0 ? ` &nbsp;·&nbsp; ${more} more waiting` : '');
+      upnextEl.querySelector('b').textContent = next;
+      upnextEl.classList.remove('hidden');
+    } else {
+      upnextEl.classList.add('hidden');
+    }
+
+    fitText();
+  }
+
+  // ---- Live connection ---------------------------------------------------------
+  let es = null;
+  let retryDelay = 1000;
+  let fadeTimer = null;
+
+  function setStatus(online) {
+    statusEl.classList.toggle('offline', !online);
+    statusText.textContent = online ? 'Live' : 'Reconnecting…';
+    clearTimeout(fadeTimer);
+    statusEl.classList.remove('faded');
+    if (online) {
+      fadeTimer = setTimeout(() => statusEl.classList.add('faded'), 4000);
+    }
+  }
+
+  function connect() {
+    es = new EventSource('/events?role=display');
+    es.onopen = () => { retryDelay = 1000; setStatus(true); };
+    es.onmessage = (e) => {
+      state = JSON.parse(e.data);
+      render();
+    };
+    es.onerror = () => {
+      setStatus(false);
+      es.close();
+      setTimeout(connect, retryDelay);
+      retryDelay = Math.min(retryDelay * 2, 15000);
+    };
+  }
+  connect();
+
+  // ---- Keep the phone awake -----------------------------------------------------
+  let wakeLock = null;
+  async function requestWakeLock() {
+    try {
+      if ('wakeLock' in navigator) {
+        wakeLock = await navigator.wakeLock.request('screen');
+      }
+    } catch { /* not critical */ }
+  }
+  requestWakeLock();
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') requestWakeLock();
+  });
+
+  // ---- Fullscreen on tap -----------------------------------------------------------
+  stage.addEventListener('click', () => {
+    hintEl.classList.add('faded');
+    const el = document.documentElement;
+    if (!document.fullscreenElement && el.requestFullscreen) {
+      el.requestFullscreen().catch(() => {});
+    }
+    requestWakeLock();
+  });
+  setTimeout(() => hintEl.classList.add('faded'), 8000);
+
+  addEventListener('resize', fitText);
+})();
+</script>
+</body>
+</html>

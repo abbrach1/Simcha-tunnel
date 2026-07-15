@@ -1,0 +1,583 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#101433">
+<title>Simcha Arrivals — Dashboard</title>
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<style>
+  :root {
+    --bg: #101433;
+    --card: #1a2046;
+    --card2: #222a5c;
+    --text: #f2f4ff;
+    --muted: #9aa3d0;
+    --accent: #ffd166;
+    --green: #2ecc71;
+    --red: #ff6b6b;
+    --blue: #5865f2;
+    --radius: 14px;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html { -webkit-text-size-adjust: 100%; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    padding-bottom: 130px; /* room for sticky action bar */
+  }
+
+  header {
+    position: sticky;
+    top: 0;
+    z-index: 10;
+    background: rgba(16, 20, 51, .92);
+    backdrop-filter: blur(8px);
+    padding: max(12px, env(safe-area-inset-top)) 16px 10px;
+    border-bottom: 1px solid rgba(255,255,255,.08);
+  }
+  header .row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+  }
+  header h1 { font-size: 18px; font-weight: 800; letter-spacing: .02em; }
+  header h1 span { color: var(--accent); }
+
+  #conn {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 12px;
+    color: var(--muted);
+    white-space: nowrap;
+  }
+  #conn .dot { width: 9px; height: 9px; border-radius: 50%; background: var(--red); }
+  #conn.online .dot { background: var(--green); }
+
+  #screens {
+    margin-top: 6px;
+    font-size: 12.5px;
+    color: var(--muted);
+  }
+  #screens.warn { color: var(--red); font-weight: 600; }
+
+  main { padding: 14px 14px 0; max-width: 640px; margin: 0 auto; }
+
+  .card {
+    background: var(--card);
+    border: 1px solid rgba(255,255,255,.07);
+    border-radius: var(--radius);
+    padding: 14px;
+    margin-bottom: 14px;
+  }
+  .card h2 {
+    font-size: 13px;
+    text-transform: uppercase;
+    letter-spacing: .12em;
+    color: var(--muted);
+    margin-bottom: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+  }
+  .card h2 .count {
+    background: var(--card2);
+    color: var(--text);
+    border-radius: 999px;
+    padding: 2px 10px;
+    font-size: 12px;
+    letter-spacing: 0;
+  }
+
+  /* Now showing */
+  #now-card { text-align: center; }
+  #now-name {
+    font-size: 34px;
+    font-weight: 900;
+    line-height: 1.15;
+    overflow-wrap: break-word;
+    min-height: 40px;
+  }
+  #now-name.empty { color: var(--muted); font-weight: 500; font-size: 18px; }
+
+  /* Buttons */
+  button {
+    font: inherit;
+    color: var(--text);
+    background: var(--card2);
+    border: 1px solid rgba(255,255,255,.1);
+    border-radius: 10px;
+    padding: 10px 14px;
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+    touch-action: manipulation;
+  }
+  button:active { transform: scale(.97); }
+  button:disabled { opacity: .4; pointer-events: none; }
+  button.small { padding: 7px 10px; font-size: 13px; }
+  button.danger { color: var(--red); border-color: rgba(255,107,107,.35); }
+  button.ghost { background: transparent; }
+
+  /* Add form */
+  #add-form { display: flex; gap: 8px; }
+  #add-input {
+    flex: 1;
+    font: inherit;
+    font-size: 16px;
+    color: var(--text);
+    background: var(--card2);
+    border: 1px solid rgba(255,255,255,.12);
+    border-radius: 10px;
+    padding: 11px 12px;
+    min-width: 0;
+  }
+  #add-input::placeholder { color: var(--muted); }
+  #add-form button { background: var(--blue); border-color: transparent; font-weight: 700; }
+
+  #bulk-toggle {
+    margin-top: 10px;
+    background: none;
+    border: none;
+    color: var(--muted);
+    font-size: 13px;
+    text-decoration: underline;
+    padding: 4px 0;
+  }
+  #bulk-area { display: none; margin-top: 10px; }
+  #bulk-area.open { display: block; }
+  #bulk-text {
+    width: 100%;
+    height: 120px;
+    font: inherit;
+    font-size: 15px;
+    color: var(--text);
+    background: var(--card2);
+    border: 1px solid rgba(255,255,255,.12);
+    border-radius: 10px;
+    padding: 10px 12px;
+    resize: vertical;
+  }
+  #bulk-area button { margin-top: 8px; background: var(--blue); border-color: transparent; font-weight: 700; }
+
+  /* Queue list */
+  ul { list-style: none; }
+  .item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 4px;
+    border-bottom: 1px solid rgba(255,255,255,.06);
+  }
+  .item:last-child { border-bottom: none; }
+  .item .pos {
+    width: 26px;
+    text-align: center;
+    color: var(--muted);
+    font-size: 13px;
+    flex-shrink: 0;
+  }
+  .item .name {
+    flex: 1;
+    font-size: 17px;
+    font-weight: 600;
+    overflow-wrap: anywhere;
+  }
+  .item.next-up .name { color: var(--accent); }
+  .item.next-up .pos { color: var(--accent); }
+  .item .btns { display: flex; gap: 6px; flex-shrink: 0; }
+  .item .btns button { padding: 8px 10px; font-size: 15px; line-height: 1; }
+
+  .empty-note { color: var(--muted); font-size: 14px; padding: 8px 4px; }
+
+  /* History */
+  .hist-item { display: flex; align-items: center; gap: 10px; padding: 8px 4px; border-bottom: 1px solid rgba(255,255,255,.06); }
+  .hist-item:last-child { border-bottom: none; }
+  .hist-item .name { flex: 1; font-size: 15px; color: var(--muted); overflow-wrap: anywhere; }
+  .hist-item .time { font-size: 12px; color: var(--muted); opacity: .7; flex-shrink: 0; }
+
+  /* Settings */
+  .field { margin-bottom: 12px; }
+  .field label { display: block; font-size: 13px; color: var(--muted); margin-bottom: 5px; }
+  .field input[type=text] {
+    width: 100%;
+    font: inherit;
+    font-size: 15px;
+    color: var(--text);
+    background: var(--card2);
+    border: 1px solid rgba(255,255,255,.12);
+    border-radius: 10px;
+    padding: 10px 12px;
+  }
+  .switch { display: flex; align-items: center; gap: 10px; font-size: 15px; }
+  .switch input { width: 20px; height: 20px; accent-color: var(--blue); }
+
+  details > summary {
+    cursor: pointer;
+    font-size: 13px;
+    text-transform: uppercase;
+    letter-spacing: .12em;
+    color: var(--muted);
+    list-style: none;
+  }
+  details > summary::before { content: '▸ '; }
+  details[open] > summary::before { content: '▾ '; }
+  details[open] > summary { margin-bottom: 10px; }
+
+  /* Sticky action bar */
+  #action-bar {
+    position: fixed;
+    left: 0; right: 0; bottom: 0;
+    z-index: 20;
+    display: flex;
+    gap: 10px;
+    padding: 12px 14px calc(12px + env(safe-area-inset-bottom));
+    background: rgba(16, 20, 51, .95);
+    backdrop-filter: blur(10px);
+    border-top: 1px solid rgba(255,255,255,.1);
+  }
+  #btn-next {
+    flex: 1;
+    background: linear-gradient(135deg, #ffd166, #f4a300);
+    color: #221a00;
+    font-size: 20px;
+    font-weight: 900;
+    border: none;
+    border-radius: 14px;
+    padding: 16px;
+    box-shadow: 0 6px 24px rgba(255, 209, 102, .25);
+  }
+  #btn-next small { display: block; font-size: 12.5px; font-weight: 600; opacity: .75; margin-top: 2px; }
+  #btn-prev, #btn-clear {
+    width: 74px;
+    font-size: 12px;
+    font-weight: 700;
+    border-radius: 14px;
+  }
+
+  #toast {
+    position: fixed;
+    left: 50%;
+    bottom: 120px;
+    transform: translateX(-50%);
+    background: #000;
+    color: #fff;
+    padding: 10px 18px;
+    border-radius: 999px;
+    font-size: 14px;
+    opacity: 0;
+    transition: opacity .25s;
+    pointer-events: none;
+    z-index: 30;
+    max-width: 85vw;
+    text-align: center;
+  }
+  #toast.show { opacity: .92; }
+</style>
+</head>
+<body>
+  <header>
+    <div class="row">
+      <h1>Simcha <span>Arrivals</span> — Dashboard</h1>
+      <div id="conn"><span class="dot"></span><span id="conn-text">Connecting…</span></div>
+    </div>
+    <div id="screens">Checking for connected screens…</div>
+  </header>
+
+  <main>
+    <section class="card" id="now-card">
+      <h2>Now on screen</h2>
+      <div id="now-name" class="empty">Screen is showing the welcome message</div>
+    </section>
+
+    <section class="card">
+      <h2>Add names</h2>
+      <form id="add-form">
+        <input id="add-input" type="text" placeholder="Camper name…" autocomplete="off" enterkeyhint="done">
+        <button type="submit">Add</button>
+      </form>
+      <button id="bulk-toggle" type="button">Paste a whole list…</button>
+      <div id="bulk-area">
+        <textarea id="bulk-text" placeholder="One name per line:&#10;Moshe Cohen&#10;Dovid Klein&#10;Yanky Friedman"></textarea>
+        <button id="bulk-add" type="button">Add all names</button>
+      </div>
+    </section>
+
+    <section class="card">
+      <h2>Up next <span class="count" id="queue-count">0</span></h2>
+      <ul id="queue"></ul>
+      <div class="empty-note" id="queue-empty">No names waiting. Add some above!</div>
+    </section>
+
+    <section class="card">
+      <details>
+        <summary>Already announced <span class="count" id="hist-count">0</span></summary>
+        <ul id="history"></ul>
+        <div class="empty-note" id="hist-empty">Nobody announced yet.</div>
+      </details>
+    </section>
+
+    <section class="card">
+      <details>
+        <summary>Display settings</summary>
+        <div class="field">
+          <label for="set-title">Title (shown when screen is idle)</label>
+          <input type="text" id="set-title">
+        </div>
+        <div class="field">
+          <label for="set-idle">Welcome message (shown under the title)</label>
+          <input type="text" id="set-idle">
+        </div>
+        <div class="field switch">
+          <input type="checkbox" id="set-upnext">
+          <label for="set-upnext" style="margin:0">Show "Up next" strip on the display</label>
+        </div>
+        <button class="small" id="set-save">Save settings</button>
+      </details>
+    </section>
+
+    <section class="card">
+      <details>
+        <summary>Danger zone</summary>
+        <div style="display:flex; gap:8px; flex-wrap:wrap;">
+          <button class="small danger" id="btn-clear-queue">Clear queue</button>
+          <button class="small danger" id="btn-clear-hist">Clear history</button>
+          <button class="small danger" id="btn-reset">Reset everything</button>
+        </div>
+      </details>
+    </section>
+  </main>
+
+  <div id="action-bar">
+    <button id="btn-prev" title="Go back to the previous name">◀ Back</button>
+    <button id="btn-next">Announce next ▶<small id="btn-next-sub">queue is empty</small></button>
+    <button id="btn-clear" title="Blank the screen">Blank screen</button>
+  </div>
+
+  <div id="toast"></div>
+
+<script>
+(() => {
+  'use strict';
+
+  const $ = (id) => document.getElementById(id);
+  let state = null;
+  let editingSettings = false;
+
+  // ---- API helpers -----------------------------------------------------------
+  async function api(action, params = {}) {
+    try {
+      const res = await fetch('/api/' + action, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(params),
+      });
+      if (!res.ok) throw new Error('Request failed');
+      return true;
+    } catch {
+      toast('⚠️ Could not reach the server — check the connection');
+      return false;
+    }
+  }
+
+  let toastTimer = null;
+  function toast(msg) {
+    const el = $('toast');
+    el.textContent = msg;
+    el.classList.add('show');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => el.classList.remove('show'), 2200);
+  }
+
+  const esc = (s) => s.replace(/[&<>"']/g, (c) => ({
+    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
+  }[c]));
+
+  const fmtTime = (ts) => new Date(ts).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+
+  // ---- Render ------------------------------------------------------------------
+  function render() {
+    if (!state) return;
+
+    // Connected screens indicator
+    const d = state.clients ? state.clients.displays : 0;
+    const screens = $('screens');
+    if (d === 0) {
+      screens.textContent = '⚠️ No display screen connected — open /display on the stage phone';
+      screens.classList.add('warn');
+    } else {
+      screens.textContent = `✅ ${d} display screen${d > 1 ? 's' : ''} connected`;
+      screens.classList.remove('warn');
+    }
+
+    // Now showing
+    const nowName = $('now-name');
+    if (state.current) {
+      nowName.textContent = state.current.name;
+      nowName.classList.remove('empty');
+    } else {
+      nowName.textContent = 'Screen is showing the welcome message';
+      nowName.classList.add('empty');
+    }
+
+    // Queue
+    const queueEl = $('queue');
+    $('queue-count').textContent = state.queue.length;
+    $('queue-empty').style.display = state.queue.length ? 'none' : 'block';
+    queueEl.innerHTML = state.queue.map((q, i) => `
+      <li class="item ${i === 0 ? 'next-up' : ''}" data-id="${q.id}">
+        <span class="pos">${i + 1}</span>
+        <span class="name">${esc(q.name)}</span>
+        <span class="btns">
+          <button class="small" data-act="show" title="Show now">📣</button>
+          <button class="small" data-act="up" title="Move up" ${i === 0 ? 'disabled' : ''}>↑</button>
+          <button class="small" data-act="down" title="Move down" ${i === state.queue.length - 1 ? 'disabled' : ''}>↓</button>
+          <button class="small" data-act="edit" title="Edit">✎</button>
+          <button class="small danger" data-act="remove" title="Remove">✕</button>
+        </span>
+      </li>`).join('');
+
+    // History
+    const histEl = $('history');
+    $('hist-count').textContent = state.announced.length;
+    $('hist-empty').style.display = state.announced.length ? 'none' : 'block';
+    histEl.innerHTML = state.announced.map((a) => `
+      <li class="hist-item" data-id="${a.id}">
+        <span class="name">${esc(a.name)}</span>
+        <span class="time">${fmtTime(a.at)}</span>
+        <button class="small" data-act="requeue" title="Announce again">↩ Re-queue</button>
+      </li>`).join('');
+
+    // Action bar
+    const next = state.queue[0];
+    $('btn-next').disabled = !next;
+    $('btn-next-sub').textContent = next ? next.name : 'queue is empty';
+    $('btn-prev').disabled = state.announced.length === 0;
+    $('btn-clear').disabled = !state.current;
+
+    // Settings (don't clobber fields while the user is typing)
+    if (!editingSettings) {
+      $('set-title').value = state.title;
+      $('set-idle').value = state.idleMessage;
+      $('set-upnext').checked = state.showUpNext;
+    }
+  }
+
+  // ---- Live connection -------------------------------------------------------------
+  let es = null;
+  let retryDelay = 1000;
+
+  function setConn(online) {
+    $('conn').classList.toggle('online', online);
+    $('conn-text').textContent = online ? 'Live' : 'Reconnecting…';
+  }
+
+  function connect() {
+    es = new EventSource('/events?role=dashboard');
+    es.onopen = () => { retryDelay = 1000; setConn(true); };
+    es.onmessage = (e) => { state = JSON.parse(e.data); render(); };
+    es.onerror = () => {
+      setConn(false);
+      es.close();
+      setTimeout(connect, retryDelay);
+      retryDelay = Math.min(retryDelay * 2, 15000);
+    };
+  }
+  connect();
+
+  // ---- Add names ----------------------------------------------------------------
+  $('add-form').addEventListener('submit', (e) => {
+    e.preventDefault();
+    const input = $('add-input');
+    const name = input.value.trim();
+    if (!name) return;
+    api('add', { names: [name] });
+    input.value = '';
+    input.focus();
+  });
+
+  $('bulk-toggle').addEventListener('click', () => {
+    $('bulk-area').classList.toggle('open');
+    if ($('bulk-area').classList.contains('open')) $('bulk-text').focus();
+  });
+
+  $('bulk-add').addEventListener('click', async () => {
+    const names = $('bulk-text').value
+      .split(/\r?\n/)
+      .map((s) => s.trim())
+      .filter(Boolean);
+    if (!names.length) return;
+    if (await api('add', { names })) {
+      $('bulk-text').value = '';
+      $('bulk-area').classList.remove('open');
+      toast(`Added ${names.length} name${names.length > 1 ? 's' : ''}`);
+    }
+  });
+
+  // ---- Queue & history item buttons (event delegation) -----------------------------
+  document.querySelector('main').addEventListener('click', (e) => {
+    const btn = e.target.closest('button[data-act]');
+    if (!btn) return;
+    const id = btn.closest('[data-id]').dataset.id;
+    const act = btn.dataset.act;
+
+    if (act === 'up' || act === 'down') api('move', { id, dir: act });
+    else if (act === 'show') api('show', { id });
+    else if (act === 'remove') api('remove', { id });
+    else if (act === 'requeue') { api('requeue', { id }); toast('Moved to the front of the queue'); }
+    else if (act === 'edit') {
+      const item = state.queue.find((q) => q.id === id);
+      const name = prompt('Edit name:', item ? item.name : '');
+      if (name && name.trim()) api('update', { id, name: name.trim() });
+    }
+  });
+
+  // ---- Main action bar -----------------------------------------------------------------
+  $('btn-next').addEventListener('click', () => api('next'));
+  $('btn-prev').addEventListener('click', () => api('prev'));
+  $('btn-clear').addEventListener('click', () => api('clearScreen'));
+
+  // Keyboard shortcuts when driven from a laptop
+  document.addEventListener('keydown', (e) => {
+    const tag = document.activeElement && document.activeElement.tagName;
+    if (tag === 'INPUT' || tag === 'TEXTAREA') return;
+    if (e.key === ' ' || e.key === 'ArrowRight') { e.preventDefault(); if (!$('btn-next').disabled) api('next'); }
+    if (e.key === 'ArrowLeft') { e.preventDefault(); if (!$('btn-prev').disabled) api('prev'); }
+  });
+
+  // ---- Settings -----------------------------------------------------------------------
+  for (const id of ['set-title', 'set-idle']) {
+    $(id).addEventListener('focus', () => { editingSettings = true; });
+    $(id).addEventListener('blur', () => { editingSettings = false; });
+  }
+  $('set-save').addEventListener('click', async () => {
+    editingSettings = false;
+    if (await api('settings', {
+      title: $('set-title').value,
+      idleMessage: $('set-idle').value,
+      showUpNext: $('set-upnext').checked,
+    })) toast('Settings saved');
+  });
+  $('set-upnext').addEventListener('change', () => {
+    api('settings', { showUpNext: $('set-upnext').checked });
+  });
+
+  // ---- Danger zone ----------------------------------------------------------------------
+  $('btn-clear-queue').addEventListener('click', () => {
+    if (confirm('Remove ALL names from the queue?')) api('reset', { scope: 'queue' });
+  });
+  $('btn-clear-hist').addEventListener('click', () => {
+    if (confirm('Clear the announced history?')) api('reset', { scope: 'announced' });
+  });
+  $('btn-reset').addEventListener('click', () => {
+    if (confirm('Reset EVERYTHING? This clears the queue, history, and the screen.')) {
+      api('reset', { scope: 'all' });
+    }
+  });
+})();
+</script>
+</body>
+</html>
