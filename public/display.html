@@ -100,30 +100,39 @@
   @media (prefers-reduced-motion: reduce) {
     #flashbar, body.flash, body.light.flash { animation: none; }
   }
-  body.flash #hint { display: none; }
+  body.flash #hint, body.split #hint { display: none; }
 
-  /* Counselor-call section shown ALONGSIDE the arrival (its own band) */
+  /* Counselor-call half: when an arrival and a call are on screen together
+     the screen splits into two equal halves — camper on top, counselor call
+     below — each with a full-size auto-fitted name. */
   #callbar {
-    flex-shrink: 0;
+    flex: 1 1 0;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
     background: #d97a00;
     color: #fff;
     text-align: center;
-    padding: 1.2vmin 4vmin;
+    padding: 2vmin 4vmin;
   }
   #callbar .cb-label {
-    font-size: clamp(14px, 3vmin, 32px);
-    font-weight: 600;
+    font-size: clamp(15px, 3.4vmin, 36px);
+    font-weight: 700;
     text-transform: uppercase;
     letter-spacing: .04em;
-    opacity: .9;
+    opacity: .95;
+    margin-bottom: 1.5vmin;
   }
   #callbar .cb-name {
-    font-size: clamp(28px, 8vmin, 90px);
     font-weight: 800;
-    line-height: 1.1;
+    line-height: 1.05;
+    max-width: 96vw;
     overflow-wrap: break-word;
   }
   #callbar.hidden { display: none; }
+  body.split #stage { flex: 1 1 0; min-height: 0; }
 
   #name {
     font-weight: 800;
@@ -269,20 +278,28 @@
     '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
   }[c]));
 
-  // ---- Text auto-fit: biggest font size that fits the stage ----------------
-  function fitText() {
-    const maxW = stage.clientWidth * 0.94;
-    // A call alone on stage shows the banner + subtitle, which need room.
-    const callOnStage = state && state.currentCall && !state.currentArrival;
-    const maxH = stage.clientHeight * (callOnStage ? 0.48 : 0.62);
+  // ---- Text auto-fit: biggest font size that fits its box -------------------
+  function fitInto(el, box, wFrac, hFrac) {
+    const maxW = box.clientWidth * wFrac;
+    const maxH = box.clientHeight * hFrac;
     let lo = 16, hi = 400;
     while (lo < hi) {
       const mid = Math.ceil((lo + hi) / 2);
-      nameEl.style.fontSize = mid + 'px';
-      if (nameEl.scrollWidth <= maxW && nameEl.scrollHeight <= maxH) lo = mid;
+      el.style.fontSize = mid + 'px';
+      if (el.scrollWidth <= maxW && el.scrollHeight <= maxH) lo = mid;
       else hi = mid - 1;
     }
-    nameEl.style.fontSize = lo + 'px';
+    el.style.fontSize = lo + 'px';
+  }
+
+  function fitText() {
+    // A call alone on stage shows the banner + subtitle, which need room.
+    const callOnStage = state && state.currentCall && !state.currentArrival;
+    fitInto(nameEl, stage, 0.94, callOnStage ? 0.48 : 0.62);
+    const callbar = document.getElementById('callbar');
+    if (document.body.classList.contains('split')) {
+      fitInto(callbar.querySelector('.cb-name'), callbar, 0.94, 0.55);
+    }
   }
 
   // ---- Render ----------------------------------------------------------------
@@ -330,10 +347,13 @@
       idleSubEl.textContent = state.idleMessage || '';
     }
 
-    if (call && arrival) {
+    const split = !!(call && arrival);
+    document.body.classList.toggle('split', split);
+    if (split) {
       callbar.querySelector('.cb-name').textContent = call.name;
       callbar.classList.remove('hidden');
     } else {
+      callbar.querySelector('.cb-name').style.fontSize = '';
       callbar.classList.add('hidden');
     }
 
