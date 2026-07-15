@@ -49,9 +49,21 @@
     color: #999;
     margin-bottom: 2.5vmin;
   }
+  /* Counselor call: a big orange banner so it can't be mistaken for an arrival */
   #kicker.call {
+    align-self: stretch;
+    background: #d97a00;
+    color: #fff;
+    font-size: clamp(24px, 6.5vmin, 76px);
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: .04em;
+    padding: 1.2vmin 4vmin;
+    border-radius: 1.2vmin;
+  }
+  #idle-sub.call {
     color: #e8a33d;
-    font-weight: 700;
+    font-weight: 600;
   }
 
   #name {
@@ -112,7 +124,8 @@
   body.light #idle-sub { color: #555; }
   body.light #upnext { background: #f0f0f0; border-top-color: #ccc; }
   body.light #upnext .un-title { color: #666; }
-  body.light #kicker.call { color: #b25a00; }
+  body.light #kicker.call { background: #d97a00; color: #fff; }
+  body.light #idle-sub.call { color: #b25a00; }
   body.light #upnext .panel.calls .un-title { color: #b25a00; }
   body.light #upnext li { color: #333; border-top-color: #ddd; }
   body.light #upnext li:first-child { color: #000; }
@@ -191,7 +204,9 @@
   // ---- Text auto-fit: biggest font size that fits the stage ----------------
   function fitText() {
     const maxW = stage.clientWidth * 0.94;
-    const maxH = stage.clientHeight * 0.62;
+    // The counselor-call banner + subtitle take more vertical room.
+    const isCall = state && state.current && state.current.type === 'call';
+    const maxH = stage.clientHeight * (isCall ? 0.48 : 0.62);
     let lo = 16, hi = 400;
     while (lo < hi) {
       const mid = Math.ceil((lo + hi) / 2);
@@ -214,9 +229,10 @@
 
     const isCall = state.current && state.current.type === 'call';
     kickerEl.classList.toggle('call', !!isCall);
+    idleSubEl.classList.toggle('call', !!isCall);
     if (state.current) {
-      kickerEl.textContent = isCall ? 'Counselor call — your camper is here' : 'Now arriving';
-      idleSubEl.textContent = '';
+      kickerEl.textContent = isCall ? 'Calling counselor' : 'Now arriving';
+      idleSubEl.textContent = isCall ? 'Your camper has arrived — come to the stage' : '';
       nameEl.textContent = state.current.name;
     } else {
       kickerEl.textContent = 'Standby';
