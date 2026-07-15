@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no, viewport-fit=cover">
-<meta name="theme-color" content="#0b1026">
+<meta name="theme-color" content="#000000">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -20,20 +20,13 @@
     height: 100%;
     overflow: hidden;
     overscroll-behavior: none;
-    background: #0b1026;
+    background: #000;
     color: #fff;
     font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
     -webkit-user-select: none;
     user-select: none;
     -webkit-touch-callout: none;
     touch-action: manipulation;
-  }
-
-  body {
-    background:
-      radial-gradient(1200px 600px at 20% -10%, rgba(88, 101, 242, .35), transparent 60%),
-      radial-gradient(1000px 500px at 90% 110%, rgba(255, 183, 3, .18), transparent 60%),
-      #0b1026;
   }
 
   #stage {
@@ -50,47 +43,39 @@
 
   #kicker {
     font-size: clamp(14px, 3.2vmin, 34px);
-    font-weight: 700;
-    letter-spacing: .35em;
+    font-weight: 600;
+    letter-spacing: .3em;
     text-transform: uppercase;
-    color: #ffd166;
-    opacity: .95;
+    color: #888;
     margin-bottom: 2.5vmin;
   }
 
   #name {
-    font-weight: 900;
+    font-weight: 800;
     line-height: 1.05;
     max-width: 96vw;
     overflow-wrap: break-word;
-    text-shadow: 0 4px 40px rgba(0,0,0,.55);
-  }
-
-  #name.entering { animation: pop .45s cubic-bezier(.2, 1.4, .4, 1); }
-  @keyframes pop {
-    0%   { transform: scale(.6); opacity: 0; }
-    100% { transform: scale(1);  opacity: 1; }
   }
 
   #idle-sub {
     margin-top: 3vmin;
     font-size: clamp(16px, 4vmin, 42px);
-    color: rgba(255,255,255,.85);
-    font-weight: 500;
+    color: #999;
+    font-weight: 400;
   }
 
   #upnext {
     position: fixed;
     left: 0; right: 0;
-    bottom: max(0px, env(safe-area-inset-bottom));
-    padding: 1.6vmin 4vmin;
+    bottom: 0;
+    padding: 1.6vmin 4vmin max(1.6vmin, env(safe-area-inset-bottom));
     text-align: center;
     font-size: clamp(13px, 2.8vmin, 30px);
-    color: rgba(255,255,255,.75);
-    background: rgba(0,0,0,.35);
-    backdrop-filter: blur(6px);
+    color: #999;
+    background: #111;
+    border-top: 1px solid #222;
   }
-  #upnext b { color: #ffd166; font-weight: 800; }
+  #upnext b { color: #fff; font-weight: 700; }
   #upnext.hidden { display: none; }
 
   #status {
@@ -133,7 +118,7 @@
   <div id="status" class="offline"><span class="dot"></span><span id="status-text">Connecting…</span></div>
 
   <div id="stage">
-    <div id="kicker">Welcome</div>
+    <div id="kicker">Standby</div>
     <div id="name">…</div>
     <div id="idle-sub"></div>
   </div>
@@ -154,7 +139,6 @@
   const statusText = $('status-text');
   const hintEl = $('hint');
 
-  let lastShownId = null;
   let state = null;
 
   // ---- Text auto-fit: biggest font size that fits the stage ----------------
@@ -180,15 +164,8 @@
       kickerEl.textContent = 'Now arriving';
       idleSubEl.textContent = '';
       nameEl.textContent = state.current.name;
-      if (state.current.id !== lastShownId) {
-        lastShownId = state.current.id;
-        nameEl.classList.remove('entering');
-        void nameEl.offsetWidth; // restart animation
-        nameEl.classList.add('entering');
-      }
     } else {
-      lastShownId = null;
-      kickerEl.textContent = 'Welcome';
+      kickerEl.textContent = 'Standby';
       nameEl.textContent = state.title;
       idleSubEl.textContent = state.idleMessage || '';
     }

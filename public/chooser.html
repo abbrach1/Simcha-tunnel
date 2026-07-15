@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta name="theme-color" content="#0b1026">
+<meta name="theme-color" content="#131518">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -20,47 +20,40 @@
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    gap: 28px;
+    gap: 24px;
     padding: 24px;
     font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
-    color: #fff;
-    background:
-      radial-gradient(1200px 600px at 20% -10%, rgba(88, 101, 242, .35), transparent 60%),
-      radial-gradient(1000px 500px at 90% 110%, rgba(255, 183, 3, .18), transparent 60%),
-      #0b1026;
+    color: #e8eaed;
+    background: #131518;
     text-align: center;
   }
-  h1 { font-size: clamp(28px, 7vw, 44px); font-weight: 900; }
-  h1 span { color: #ffd166; }
-  p.sub { color: rgba(255,255,255,.7); font-size: 16px; max-width: 420px; line-height: 1.5; }
-  .roles { display: flex; flex-direction: column; gap: 14px; width: 100%; max-width: 380px; }
+  h1 { font-size: clamp(24px, 6vw, 36px); font-weight: 700; }
+  p.sub { color: #8b929c; font-size: 16px; max-width: 420px; line-height: 1.5; }
+  .roles { display: flex; flex-direction: column; gap: 12px; width: 100%; max-width: 380px; }
   a.role {
     display: block;
-    padding: 20px;
-    border-radius: 16px;
+    padding: 18px;
+    border-radius: 8px;
     text-decoration: none;
     color: inherit;
-    background: rgba(255,255,255,.06);
-    border: 1px solid rgba(255,255,255,.12);
-    transition: transform .1s;
+    background: #1c1f24;
+    border: 1px solid #2a2e34;
   }
-  a.role:active { transform: scale(.97); }
-  a.role .big { font-size: 22px; font-weight: 800; margin-bottom: 4px; }
-  a.role .desc { font-size: 14px; color: rgba(255,255,255,.65); line-height: 1.4; }
-  a.role.display .big { color: #ffd166; }
-  a.role.dashboard .big { color: #8ea0ff; }
+  a.role:active { background: #272b31; }
+  a.role .big { font-size: 20px; font-weight: 700; margin-bottom: 4px; }
+  a.role .desc { font-size: 14px; color: #8b929c; line-height: 1.4; }
 </style>
 </head>
 <body>
-  <h1>Camp <span>Simcha</span> Arrivals 🎉</h1>
+  <h1>Camp Simcha Arrivals</h1>
   <p class="sub">Pick what this phone should be:</p>
   <div class="roles">
     <a class="role display" href="/display">
-      <div class="big">📺 Stage Display</div>
+      <div class="big">Stage Display</div>
       <div class="desc">The big screen by the stage. Shows each arriving camper's name — the announcer reads from here.</div>
     </a>
     <a class="role dashboard" href="/dashboard">
-      <div class="big">🎛️ Control Dashboard</div>
+      <div class="big">Control Dashboard</div>
       <div class="desc">For the person spotting campers. Enter the list of names and tap "Announce next" as each camper comes in.</div>
     </a>
   </div>

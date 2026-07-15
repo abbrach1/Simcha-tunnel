@@ -28,7 +28,7 @@ const STATE_FILE = path.join(DATA_DIR, 'state.json');
 
 const defaultState = () => ({
   title: 'Camp Simcha',
-  idleMessage: 'Welcome to camp! 🎉',
+  idleMessage: 'Waiting for the next arrival',
   showUpNext: true,
   current: null,          // { id, name, at } currently on the big screen
   queue: [],              // [{ id, name }] waiting to be announced

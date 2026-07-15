@@ -1,4 +1,4 @@
-# Camp Simcha Arrivals 🎉
+# Camp Simcha Arrivals
 
 A live arrival announcement board for Camp Simcha. Campers stream in, one person spots
 them from the gate, and the announcer by the stage reads each name off a big
@@ -8,7 +8,7 @@ Two phones, two roles:
 
 | Phone | URL | What it does |
 |---|---|---|
-| **Stage display** | `/display` | Fullscreen, giant auto-sizing name with a pop animation on each new arrival. The announcer reads from this. |
+| **Stage display** | `/display` | Fullscreen, giant auto-sizing name for each arrival. The announcer reads from this. |
 | **Control dashboard** | `/dashboard` | Enter/paste the list of names, reorder them, and tap **Announce next ▶** as each camper walks in. |
 
 Opening the root URL (`/`) shows a chooser so each phone can pick its role.
@@ -69,7 +69,7 @@ a home-screen app on both phones:
 
 1. Open the URL in Safari.
 2. Tap **Share** (the square with the arrow) → **Add to Home Screen** → **Add**.
-3. Launch it from the new **Camp Simcha** 🎉 icon — it opens fullscreen with
+3. Launch it from the new **Camp Simcha** icon — it opens fullscreen with
    no address bar.
 
 Two more tips for the stage phone:
