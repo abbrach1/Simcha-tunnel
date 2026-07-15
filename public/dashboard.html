@@ -689,10 +689,26 @@
   // shared logic (window.SimchaLogic).
   let fbActive = false;
   let fbApply = null;
+  let fbProbe = null;
+  let fbCleanup = null;
+
+  // Tear down a wedged Firebase pipeline and build a fresh one. The SDK
+  // usually reconnects itself, but on phones the stream can die silently
+  // after backgrounding — this is the recovery path the watchdog uses.
+  function restartFirebase() {
+    if (!fbActive) return;
+    setConn(false);
+    if (fbCleanup) { try { fbCleanup(); } catch { /* ignore */ } fbCleanup = null; }
+    fbActive = false;
+    fbApply = null;
+    fbProbe = null;
+    startFirebase();
+  }
 
   async function startFirebase() {
     if (fbActive) return;
     fbActive = true;
+    lastSeen = Date.now();
     clearTimeout(retryTimer);
     if (es) {
       es.onerror = null;
@@ -705,7 +721,8 @@
         import(SDK + '/firebase-app.js'),
         import(SDK + '/firebase-firestore.js'),
       ]);
-      const app = appMod.initializeApp(window.FIREBASE_CONFIG);
+      // Unique app name so a rebuilt pipeline never collides with the old one.
+      const app = appMod.initializeApp(window.FIREBASE_CONFIG, 'app-' + Date.now());
       const db = fsMod.getFirestore(app);
       const boardRef = fsMod.doc(db, 'boards', 'main');
       let counts = { displays: 0, dashboards: 0 };
@@ -724,14 +741,31 @@
           : SimchaLogic.defaultState();
         if (!SimchaLogic.applyAction(st, action, params || {})) throw new Error('Unknown action');
         tx.set(boardRef, st);
-      });
+      }).then((r) => { lastSeen = Date.now(); return r; });
 
-      fsMod.onSnapshot(boardRef, { includeMetadataChanges: true }, (snap) => {
+      const unsubBoard = fsMod.onSnapshot(boardRef, { includeMetadataChanges: true }, (snap) => {
         latest = snap.data() || SimchaLogic.defaultState();
-        lastSeen = Date.now();
+        if (!snap.metadata.fromCache) lastSeen = Date.now();
         setConn(!snap.metadata.fromCache);
         emit();
       }, () => setConn(false));
+
+      // Active liveness probe: fetch the doc FROM THE SERVER, bypassing the
+      // cache. Used the moment the page wakes up and by the watchdog.
+      fbProbe = async () => {
+        try {
+          const snap = await Promise.race([
+            fsMod.getDocFromServer(boardRef),
+            new Promise((_, rej) => setTimeout(() => rej(new Error('probe timeout')), 8000)),
+          ]);
+          latest = snap.data() || SimchaLogic.defaultState();
+          lastSeen = Date.now();
+          setConn(true);
+          emit();
+        } catch {
+          restartFirebase();
+        }
+      };
 
       // Presence heartbeat so everyone can count displays and admins.
       // ts is a Firestore SERVER timestamp: phone clock skew can't make a
@@ -741,13 +775,15 @@
       const meRef = fsMod.doc(db, 'boards', 'main', 'clients', clientId);
       const beat = () => fsMod.setDoc(meRef, { role: 'dashboard', ts: fsMod.serverTimestamp() }).catch(() => {});
       beat();
-      setInterval(beat, 7000);
+      const beatTimer = setInterval(beat, 7000);
       document.addEventListener('visibilitychange', () => {
         if (document.visibilityState === 'visible') beat();
       });
       addEventListener('online', beat);
       addEventListener('pageshow', beat);
-      fsMod.onSnapshot(fsMod.collection(db, 'boards', 'main', 'clients'), (qs) => {
+      const unsubClients = fsMod.onSnapshot(fsMod.collection(db, 'boards', 'main', 'clients'), (qs) => {
+        // Server-acked snapshots (incl. our own 7s beats) prove liveness.
+        if (!qs.metadata || !qs.metadata.fromCache) lastSeen = Date.now();
         const entries = [];
         qs.forEach((d) => {
           const c = d.data();
@@ -768,10 +804,18 @@
         counts = next;
         emit();
       }, () => { /* counts stay stale — not critical */ });
+
+      fbCleanup = () => {
+        try { unsubBoard(); } catch { /* ignore */ }
+        try { unsubClients(); } catch { /* ignore */ }
+        clearInterval(beatTimer);
+        if (appMod.deleteApp) appMod.deleteApp(app).catch(() => {});
+      };
     } catch {
       // SDK failed to load — degrade to polling against /api.
       fbActive = false;
       fbApply = null;
+      fbProbe = null;
       startPolling();
     }
   }
@@ -803,7 +847,11 @@
   connect();
 
   function reconnectNow() {
-    if (fbActive) return; // the Firestore SDK reconnects on its own
+    if (fbActive) {
+      // Fetch fresh data from the server right now; rebuild if it fails.
+      if (fbProbe) fbProbe();
+      return;
+    }
     if (polling) {
       pollNow();
       return;
@@ -812,11 +860,15 @@
     connect();
   }
 
-  // The server pings every 10s; if nothing (data or ping) arrives for 30s
-  // the connection died without firing an error — rebuild it. (Polling mode
-  // has its own success/failure signal on every poll.)
+  // Liveness watchdog. SSE mode: the server pings every 10s. Firebase mode:
+  // our own presence beats produce server-acked snapshots every ~7s. Either
+  // way, silence for 30s means the connection died without an error —
+  // rebuild it. (Polling mode has its own success/failure signal per poll.)
   setInterval(() => {
-    if (!polling && !fbActive && lastSeen && Date.now() - lastSeen > 30000) {
+    if (polling || !lastSeen || Date.now() - lastSeen < 30000) return;
+    if (fbActive) {
+      restartFirebase();
+    } else {
       setConn(false);
       reconnectNow();
     }
