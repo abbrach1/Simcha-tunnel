@@ -73,21 +73,31 @@
     inset: 0;
     z-index: 50;
     display: flex;
+    flex-direction: column;
     align-items: center;
     justify-content: center;
+    gap: 2vmin;
     text-align: center;
     padding: 4vmin;
     background: #d92b2b;
     color: #fff;
     animation: flashband 1s steps(2, jump-none) infinite;
   }
-  #flashbar .fb-text {
+  #flashbar .fb-name {
     font-weight: 900;
+    line-height: 1.05;
+    width: 100%;
+    overflow-wrap: break-word;
+  }
+  #flashbar .fb-name:empty { display: none; }
+  #flashbar .fb-text {
+    font-weight: 800;
     line-height: 1.1;
     text-transform: uppercase;
     letter-spacing: .02em;
     width: 100%;
     overflow-wrap: break-word;
+    opacity: .95;
   }
   #flashbar.hidden { display: none; }
   @keyframes flashband {
@@ -238,7 +248,10 @@
   <div id="hint">Tap anywhere for fullscreen</div>
   <div id="status" class="offline"><span class="dot"></span><span id="status-text">Connecting…</span></div>
 
-  <div id="flashbar" class="hidden"><div class="fb-text"></div></div>
+  <div id="flashbar" class="hidden">
+    <div class="fb-name"></div>
+    <div class="fb-text"></div>
+  </div>
 
   <div id="stage">
     <div id="kicker">Standby</div>
@@ -300,7 +313,10 @@
     const flashbar = document.getElementById('flashbar');
     if (state && state.flashOn) {
       // Text spans the full width and wraps; the height governs the fit.
-      fitInto(flashbar.querySelector('.fb-text'), flashbar, 10, 0.78);
+      const fbName = flashbar.querySelector('.fb-name');
+      const hasName = !!fbName.textContent;
+      if (hasName) fitInto(fbName, flashbar, 10, 0.5);
+      fitInto(flashbar.querySelector('.fb-text'), flashbar, 10, hasName ? 0.24 : 0.78);
     }
   }
 
@@ -314,10 +330,13 @@
     const themeMeta = document.querySelector('meta[name=theme-color]');
     if (themeMeta) themeMeta.content = light ? '#ffffff' : '#000000';
 
-    // Attention flash: full-screen red takeover with the message centered.
+    // Attention flash: full-screen red takeover — the name of whoever is
+    // being called (counselor first, else the camper) huge, message below.
     const flashbar = document.getElementById('flashbar');
     document.body.classList.toggle('flash', !!state.flashOn);
     if (state.flashOn) {
+      const who = state.currentCall || state.currentArrival;
+      flashbar.querySelector('.fb-name').textContent = who ? who.name : '';
       flashbar.querySelector('.fb-text').textContent = state.flashText || 'Waiting by the tunnel';
       flashbar.classList.remove('hidden');
     } else {
