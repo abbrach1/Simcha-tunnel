@@ -136,6 +136,9 @@ const newestAsCurrent = () => {
   return asCurrent(n, state.announced[0] === n ? 'arrival' : 'call');
 };
 
+// Set by restore(); any other action cancels it (see restore).
+let lastRestore = null;
+
 const actions = {
   /** Add one or more names to the end of a queue. */
   add({ names, list }) {
@@ -257,12 +260,22 @@ const actions = {
    * lost its state, e.g. after a redeploy on a host with an ephemeral disk).
    * Everything is sanitized; the screen comes back blank.
    */
-  restore({ queue, announced, callQueue, callAnnounced, title, idleMessage, showUpNext, theme, showCurrent }) {
-    // Only ever fill an empty server — never clobber live data (also makes
-    // simultaneous auto-restores from several phones safe: first one wins).
+  restore({ queue, announced, callQueue, callAnnounced, title, idleMessage, showUpNext, theme, showCurrent, at }) {
+    // Only ever fill an empty server — never clobber live data. When several
+    // phones reconnect after a data loss, each sends its backup timestamp:
+    // for 60s after a restore, a strictly NEWER backup may replace it (so a
+    // display that was offline with an old cache can't win over a fresh one).
+    // Any other action cancels the window, so live edits are never undone.
     const empty = !state.current && !state.queue.length && !state.announced.length
       && !state.callQueue.length && !state.callAnnounced.length;
-    if (!empty) return;
+    const backupAt = Number(at) || 0;
+    if (!empty) {
+      const upgradable = lastRestore
+        && Date.now() < lastRestore.until
+        && backupAt > lastRestore.backupAt;
+      if (!upgradable) return;
+    }
+    lastRestore = { backupAt, until: Date.now() + 60000 };
 
     const item = (x) => {
       const name = x && cleanName(x.name);
@@ -415,6 +428,7 @@ const server = http.createServer(async (req, res) => {
     try {
       const body = await readBody(req);
       const params = body ? JSON.parse(body) : {};
+      if (name !== 'restore') lastRestore = null;
       action(params);
       state.lastActivityAt = Date.now();
       changed();

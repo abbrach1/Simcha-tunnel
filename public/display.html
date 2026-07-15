@@ -315,6 +315,7 @@
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
+            at: cached.at,
             queue: c.queue,
             announced: c.announced,
             callQueue: c.callQueue,
