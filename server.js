@@ -36,6 +36,9 @@ const defaultState = () => ({
   announced: [],          // arrivals already announced [{ id, name, at }] (newest first)
   callQueue: [],          // counselor calls waiting [{ id, name }]
   callAnnounced: [],      // counselor calls already shown [{ id, name, at }]
+  // 0 only on a truly fresh server (never touched). Lets clients tell
+  // "server lost its data" (auto-restore) apart from "staff cleared it".
+  lastActivityAt: 0,
 });
 
 // The two announcement channels share all queue mechanics; either one's
@@ -254,7 +257,13 @@ const actions = {
    * lost its state, e.g. after a redeploy on a host with an ephemeral disk).
    * Everything is sanitized; the screen comes back blank.
    */
-  restore({ queue, announced, callQueue, callAnnounced, title, idleMessage, showUpNext, theme }) {
+  restore({ queue, announced, callQueue, callAnnounced, title, idleMessage, showUpNext, theme, showCurrent }) {
+    // Only ever fill an empty server — never clobber live data (also makes
+    // simultaneous auto-restores from several phones safe: first one wins).
+    const empty = !state.current && !state.queue.length && !state.announced.length
+      && !state.callQueue.length && !state.callAnnounced.length;
+    if (!empty) return;
+
     const item = (x) => {
       const name = x && cleanName(x.name);
       return name ? { id: newId(), name } : null;
@@ -270,7 +279,14 @@ const actions = {
     if (Array.isArray(announced)) state.announced = historyOf(announced);
     if (Array.isArray(callQueue)) state.callQueue = queueOf(callQueue);
     if (Array.isArray(callAnnounced)) state.callAnnounced = historyOf(callAnnounced);
-    state.current = null;
+    // Re-show exactly what was on screen before the server lost its data.
+    if (showCurrent === 'call' && state.callAnnounced[0]) {
+      state.current = asCurrent(state.callAnnounced[0], 'call');
+    } else if (showCurrent === 'arrival' && state.announced[0]) {
+      state.current = asCurrent(state.announced[0], 'arrival');
+    } else {
+      state.current = null;
+    }
     actions.settings({ title, idleMessage, showUpNext, theme });
   },
 
@@ -400,6 +416,7 @@ const server = http.createServer(async (req, res) => {
       const body = await readBody(req);
       const params = body ? JSON.parse(body) : {};
       action(params);
+      state.lastActivityAt = Date.now();
       changed();
       res.writeHead(200, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify({ ok: true }));

@@ -502,11 +502,19 @@
   // connect to a server with NO data while a backup exists, offer to restore.
   const BACKUP_KEY = 'camp-simcha-arrivals-backup';
   let restoreDismissed = false;
+  let autoRestoreTried = false;
+
+  const loadBackup = () => {
+    try { return JSON.parse(localStorage.getItem(BACKUP_KEY)); } catch { return null; }
+  };
+  const backupHasData = (b) => b && (b.queue?.length || b.announced?.length
+    || b.callQueue?.length || b.callAnnounced?.length);
 
   function updateBackup() {
     const hasData = state.queue.length || state.announced.length || state.current
       || (state.callQueue || []).length || (state.callAnnounced || []).length;
     if (hasData) {
+      autoRestoreTried = false;
       try {
         localStorage.setItem(BACKUP_KEY, JSON.stringify({
           at: Date.now(),
@@ -514,6 +522,7 @@
           announced: state.announced,
           callQueue: state.callQueue || [],
           callAnnounced: state.callAnnounced || [],
+          current: state.current,
           title: state.title,
           idleMessage: state.idleMessage,
           showUpNext: state.showUpNext,
@@ -527,10 +536,20 @@
       banner.classList.remove('show');
       return;
     }
-    let backup = null;
-    try { backup = JSON.parse(localStorage.getItem(BACKUP_KEY)); } catch { /* ignore */ }
-    if (!backup || (!backup.queue?.length && !backup.announced?.length
-        && !backup.callQueue?.length && !backup.callAnnounced?.length)) return;
+    const backup = loadBackup();
+    if (!backupHasData(backup)) return;
+
+    // Server is empty AND was never touched since starting → it lost its
+    // data. Restore automatically from a recent backup, no tap needed.
+    // (A staff reset stamps lastActivityAt, so it never auto-restores.)
+    if (!state.lastActivityAt && !autoRestoreTried
+        && Date.now() - backup.at < 24 * 3600 * 1000) {
+      autoRestoreTried = true;
+      api('restore', { ...backup, showCurrent: backup.current && backup.current.type })
+        .then((ok) => { if (ok) toast('Server was empty — restored from this phone’s backup'); });
+      return;
+    }
+
     const when = new Date(backup.at).toLocaleString([], { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
     $('restore-text').textContent =
       `The server has no data, but this phone has a backup from ${when} `
@@ -539,12 +558,13 @@
   }
 
   $('btn-restore').addEventListener('click', async () => {
-    let backup = null;
-    try { backup = JSON.parse(localStorage.getItem(BACKUP_KEY)); } catch { /* ignore */ }
+    const backup = loadBackup();
     if (!backup) return;
     restoreDismissed = true;
     $('restore-banner').classList.remove('show');
-    if (await api('restore', backup)) toast('List restored');
+    if (await api('restore', { ...backup, showCurrent: backup.current && backup.current.type })) {
+      toast('List restored');
+    }
   });
   $('btn-restore-dismiss').addEventListener('click', () => {
     restoreDismissed = true;

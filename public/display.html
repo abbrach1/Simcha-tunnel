@@ -287,6 +287,64 @@
     }
   }
 
+  // ---- Local cache & auto-restore ----------------------------------------------
+  // The display mirrors the last non-empty state to localStorage. If the
+  // server ever comes back EMPTY and UNTOUCHED (lost its data — not a staff
+  // reset, which stamps lastActivityAt), the display pushes its cache back,
+  // including re-showing the exact name that was on screen. The server only
+  // accepts a restore while empty, so multiple phones can't fight.
+  const CACHE_KEY = 'camp-simcha-display-cache';
+  let autoRestoreTried = false;
+
+  const isEmptyState = (s) => !s.current && !s.queue.length && !s.announced.length
+    && !(s.callQueue || []).length && !(s.callAnnounced || []).length;
+
+  function handleState(s) {
+    if (!isEmptyState(s)) {
+      autoRestoreTried = false;
+      try {
+        localStorage.setItem(CACHE_KEY, JSON.stringify({ at: Date.now(), state: s }));
+      } catch { /* best-effort */ }
+    } else if (!s.lastActivityAt && !autoRestoreTried) {
+      let cached = null;
+      try { cached = JSON.parse(localStorage.getItem(CACHE_KEY)); } catch { /* ignore */ }
+      if (cached && cached.state && Date.now() - cached.at < 24 * 3600 * 1000) {
+        autoRestoreTried = true;
+        const c = cached.state;
+        fetch('/api/restore', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            queue: c.queue,
+            announced: c.announced,
+            callQueue: c.callQueue,
+            callAnnounced: c.callAnnounced,
+            title: c.title,
+            idleMessage: c.idleMessage,
+            showUpNext: c.showUpNext,
+            theme: c.theme,
+            showCurrent: c.current && c.current.type,
+          }),
+        }).catch(() => {});
+        // Keep showing the cached content; the restored state arrives next.
+        state = c;
+        render();
+        return;
+      }
+    }
+    state = s;
+    render();
+  }
+
+  // Show the last known content immediately on load, before connecting.
+  try {
+    const cached = JSON.parse(localStorage.getItem(CACHE_KEY));
+    if (cached && cached.state) {
+      state = cached.state;
+      render();
+    }
+  } catch { /* ignore */ }
+
   function connect() {
     clearTimeout(retryTimer);
     if (es) {
@@ -298,8 +356,7 @@
     es.onopen = () => { retryDelay = 500; lastSeen = Date.now(); setStatus(true); };
     es.onmessage = (e) => {
       lastSeen = Date.now();
-      state = JSON.parse(e.data);
-      render();
+      handleState(JSON.parse(e.data));
     };
     es.addEventListener('ping', () => { lastSeen = Date.now(); });
     es.onerror = () => {
