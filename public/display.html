@@ -416,6 +416,43 @@
   let fbApply = null;
   let fbProbe = null;
   let fbCleanup = null;
+  let lastRestOk = 0;     // last successful plain-HTTPS REST read
+  let fbHealthyAt = 0;    // last REAL server contact (never reset by rebuilds)
+  const pageLoadAt = Date.now();
+
+  function serverContact() {
+    lastSeen = Date.now();
+    fbHealthyAt = lastSeen;
+  }
+
+  // Hammer of last resort: if neither the live channel nor plain REST reads
+  // have reached the server for 2 minutes, do exactly what a human would —
+  // reload the page (rate-limited; the display repaints from cache, so the
+  // reload is seamless).
+  function hardReload() {
+    const last = Number(sessionStorage.getItem('simcha-hard-reload-at') || 0);
+    if (Date.now() - last < 180000) return;
+    sessionStorage.setItem('simcha-hard-reload-at', String(Date.now()));
+    location.reload();
+  }
+
+  // Decode Firestore's REST document format into plain JS.
+  function fromFs(v) {
+    if (v.stringValue !== undefined) return v.stringValue;
+    if (v.integerValue !== undefined) return Number(v.integerValue);
+    if (v.doubleValue !== undefined) return v.doubleValue;
+    if (v.booleanValue !== undefined) return v.booleanValue;
+    if (v.nullValue !== undefined) return null;
+    if (v.timestampValue !== undefined) return new Date(v.timestampValue).getTime();
+    if (v.arrayValue) return (v.arrayValue.values || []).map(fromFs);
+    if (v.mapValue) return decodeFsFields(v.mapValue.fields);
+    return null;
+  }
+  function decodeFsFields(fields) {
+    const o = {};
+    for (const k in (fields || {})) o[k] = fromFs(fields[k]);
+    return o;
+  }
 
   function applyRemote(action, params) {
     if (fbApply) return fbApply(action, params).catch(() => {});
@@ -484,10 +521,33 @@
 
       const unsubBoard = fsMod.onSnapshot(boardRef, { includeMetadataChanges: true }, (snap) => {
         latest = snap.data() || SimchaLogic.defaultState();
-        if (!snap.metadata.fromCache) lastSeen = Date.now();
+        if (!snap.metadata.fromCache) serverContact();
         setStatus(!snap.metadata.fromCache);
         emit();
       }, () => setStatus(false));
+
+      // REST backstop: a plain HTTPS read of the board every 4s. Even if the
+      // SDK's live channel silently dies (some networks kill it), this is the
+      // same kind of request as a manual page refresh — so the screen keeps
+      // updating no matter what.
+      const restBase = window.FIRESTORE_REST_BASE
+        || ('https://firestore.googleapis.com/v1/projects/'
+            + window.FIREBASE_CONFIG.projectId + '/databases/(default)/documents');
+      const restTick = async () => {
+        try {
+          const r = await fetch(restBase + '/boards/main', { cache: 'no-store' });
+          if (r.status === 404) { lastRestOk = Date.now(); return; }
+          if (!r.ok) return;
+          const docJson = await r.json();
+          lastRestOk = Date.now();
+          const data = decodeFsFields(docJson.fields);
+          if (!latest || (data.lastActivityAt || 0) > (latest.lastActivityAt || 0)) {
+            latest = { ...SimchaLogic.defaultState(), ...data };
+            emit();
+          }
+        } catch { /* offline — the watchdog handles prolonged silence */ }
+      };
+      const restTimer = setInterval(restTick, 4000);
 
       // Active liveness probe: fetch the doc FROM THE SERVER, bypassing the
       // cache. Used the moment the page wakes up (so the display catches up
@@ -499,12 +559,13 @@
             new Promise((_, rej) => setTimeout(() => rej(new Error('probe timeout')), 8000)),
           ]);
           latest = snap.data() || SimchaLogic.defaultState();
-          lastSeen = Date.now();
+          serverContact();
           setStatus(true);
           emit();
         } catch {
           restartFirebase();
         }
+        restTick(); // the REST path double-checks either way
       };
 
       // Presence heartbeat so dashboards can count connected displays.
@@ -523,7 +584,7 @@
       addEventListener('pageshow', beat);
       const unsubClients = fsMod.onSnapshot(fsMod.collection(db, 'boards', 'main', 'clients'), (qs) => {
         // Server-acked snapshots (incl. our own 7s beats) prove liveness.
-        if (!qs.metadata || !qs.metadata.fromCache) lastSeen = Date.now();
+        if (!qs.metadata || !qs.metadata.fromCache) serverContact();
         const entries = [];
         qs.forEach((d) => {
           const c = d.data();
@@ -549,6 +610,7 @@
         try { unsubBoard(); } catch { /* ignore */ }
         try { unsubClients(); } catch { /* ignore */ }
         clearInterval(beatTimer);
+        clearInterval(restTimer);
         if (appMod.deleteApp) appMod.deleteApp(app).catch(() => {});
       };
     } catch {
@@ -681,10 +743,15 @@
   // way, silence for 30s means the connection died without an error —
   // rebuild it. (Polling mode has its own success/failure signal per poll.)
   setInterval(() => {
-    if (polling || !lastSeen || Date.now() - lastSeen < 30000) return;
+    if (polling || !lastSeen) return;
+    const now = Date.now();
     if (fbActive) {
-      restartFirebase();
-    } else {
+      if (now - lastSeen > 30000) restartFirebase();
+      // Nothing (live channel OR plain REST) for 2 minutes → real reload.
+      if (now - Math.max(fbHealthyAt, lastRestOk, pageLoadAt) > 120000) hardReload();
+      return;
+    }
+    if (now - lastSeen > 30000) {
       setStatus(false);
       reconnectNow();
     }
