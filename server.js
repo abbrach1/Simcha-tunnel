@@ -31,10 +31,20 @@ const defaultState = () => ({
   idleMessage: 'Waiting for the next arrival',
   showUpNext: true,
   theme: 'dark',          // 'dark' | 'light' — light is for outdoor daylight
-  current: null,          // { id, name, at } currently on the big screen
-  queue: [],              // [{ id, name }] waiting to be announced
-  announced: [],          // [{ id, name, at }] already announced (newest first)
+  current: null,          // { type: 'arrival'|'call', id, name, at } on the big screen
+  queue: [],              // arrivals waiting to be announced [{ id, name }]
+  announced: [],          // arrivals already announced [{ id, name, at }] (newest first)
+  callQueue: [],          // counselor calls waiting [{ id, name }]
+  callAnnounced: [],      // counselor calls already shown [{ id, name, at }]
 });
+
+// The two announcement channels share all queue mechanics; either one's
+// "next"/"show" takes over the single screen (state.current).
+const LISTS = {
+  arrivals: { q: 'queue', a: 'announced', type: 'arrival' },
+  calls: { q: 'callQueue', a: 'callAnnounced', type: 'call' },
+};
+const listOf = (name) => LISTS[name] || LISTS.arrivals;
 
 let state = defaultState();
 
@@ -109,44 +119,64 @@ function changed() {
 
 const cleanName = (s) => String(s || '').replace(/\s+/g, ' ').trim().slice(0, 120);
 
+// Most recently shown entry across both channels (for Back / re-show).
+function newestShown() {
+  const a = state.announced[0];
+  const c = state.callAnnounced[0];
+  if (a && c) return (a.at >= c.at ? a : c);
+  return a || c || null;
+}
+const asCurrent = (entry, type) => ({ type, id: entry.id, name: entry.name, at: entry.at });
+const newestAsCurrent = () => {
+  const n = newestShown();
+  if (!n) return null;
+  return asCurrent(n, state.announced[0] === n ? 'arrival' : 'call');
+};
+
 const actions = {
-  /** Add one or more names to the end of the queue. */
-  add({ names }) {
-    const list = Array.isArray(names) ? names : [names];
-    for (const raw of list) {
+  /** Add one or more names to the end of a queue. */
+  add({ names, list }) {
+    const L = listOf(list);
+    const items = Array.isArray(names) ? names : [names];
+    for (const raw of items) {
       const name = cleanName(raw);
-      if (name) state.queue.push({ id: newId(), name });
+      if (name) state[L.q].push({ id: newId(), name });
     }
   },
 
   /** Rename a queued entry. */
-  update({ id, name }) {
-    const item = state.queue.find((q) => q.id === id);
+  update({ id, name, list }) {
+    const L = listOf(list);
+    const item = state[L.q].find((q) => q.id === id);
     const clean = cleanName(name);
     if (item && clean) item.name = clean;
   },
 
   /** Remove a queued entry. */
-  remove({ id }) {
-    state.queue = state.queue.filter((q) => q.id !== id);
+  remove({ id, list }) {
+    const L = listOf(list);
+    state[L.q] = state[L.q].filter((q) => q.id !== id);
   },
 
   /** Move a queued entry up/down/top. */
-  move({ id, dir }) {
-    const i = state.queue.findIndex((q) => q.id === id);
+  move({ id, dir, list }) {
+    const L = listOf(list);
+    const arr = state[L.q];
+    const i = arr.findIndex((q) => q.id === id);
     if (i < 0) return;
-    const [item] = state.queue.splice(i, 1);
+    const [item] = arr.splice(i, 1);
     let j = i;
     if (dir === 'up') j = Math.max(0, i - 1);
-    else if (dir === 'down') j = Math.min(state.queue.length, i + 1);
+    else if (dir === 'down') j = Math.min(arr.length, i + 1);
     else if (dir === 'top') j = 0;
-    state.queue.splice(j, 0, item);
+    arr.splice(j, 0, item);
   },
 
   /** Replace queue order with the given id order (drag-reorder). */
-  reorder({ ids }) {
+  reorder({ ids, list }) {
     if (!Array.isArray(ids)) return;
-    const byId = new Map(state.queue.map((q) => [q.id, q]));
+    const L = listOf(list);
+    const byId = new Map(state[L.q].map((q) => [q.id, q]));
     const next = [];
     for (const id of ids) {
       const item = byId.get(id);
@@ -157,60 +187,66 @@ const actions = {
     }
     // Keep anything the client didn't know about (added concurrently).
     for (const item of byId.values()) next.push(item);
-    state.queue = next;
+    state[L.q] = next;
   },
 
   /**
-   * Announce the next name in the queue. A name counts as announced the
-   * moment it goes on screen: it is added to the history immediately, and
-   * `current` mirrors the newest history entry.
+   * Put the next queued name on the screen (taking it over from whatever is
+   * showing). A name counts as announced the moment it goes on screen: it is
+   * added to that channel's history immediately, and `current` mirrors the
+   * newest history entry.
    */
-  next() {
-    if (state.queue.length === 0) return;
-    const item = state.queue.shift();
+  next({ list } = {}) {
+    const L = listOf(list);
+    if (state[L.q].length === 0) return;
+    const item = state[L.q].shift();
     const entry = { id: item.id, name: item.name, at: Date.now() };
-    state.announced.unshift(entry);
-    state.current = entry;
+    state[L.a].unshift(entry);
+    state.current = asCurrent(entry, L.type);
   },
 
-  /** Announce a specific queued name immediately. */
-  show({ id }) {
-    const i = state.queue.findIndex((q) => q.id === id);
+  /** Put a specific queued name on the screen immediately. */
+  show({ id, list }) {
+    const L = listOf(list);
+    const i = state[L.q].findIndex((q) => q.id === id);
     if (i < 0) return;
-    const [item] = state.queue.splice(i, 1);
+    const [item] = state[L.q].splice(i, 1);
     const entry = { id: item.id, name: item.name, at: Date.now() };
-    state.announced.unshift(entry);
-    state.current = entry;
+    state[L.a].unshift(entry);
+    state.current = asCurrent(entry, L.type);
   },
 
   /**
-   * Go back one step. If a name is on screen, undo its announcement (back
-   * to the front of the queue) and re-show the one before it. If the screen
-   * is blank, just re-show the most recently announced name.
+   * Go back one step. If something is on screen, undo it (back to the front
+   * of its own queue) and re-show whatever was on screen before it — from
+   * either channel. If the screen is blank, re-show the most recent entry.
    */
   prev() {
-    if (state.announced.length === 0) return;
     if (state.current) {
-      const undone = state.announced.shift();
-      state.queue.unshift({ id: undone.id, name: undone.name });
-      state.current = state.announced[0] || null;
+      const L = state.current.type === 'call' ? LISTS.calls : LISTS.arrivals;
+      const undone = state[L.a].shift();
+      if (undone) state[L.q].unshift({ id: undone.id, name: undone.name });
+      state.current = newestAsCurrent();
     } else {
-      state.current = state.announced[0];
+      state.current = newestAsCurrent();
     }
   },
 
-  /** Blank the big screen (the name stays in the announced history). */
+  /** Blank the big screen (the entry stays in its history). */
   clearScreen() {
     state.current = null;
   },
 
-  /** Put an announced name back at the front of the queue. */
-  requeue({ id }) {
-    const i = state.announced.findIndex((a) => a.id === id);
+  /** Put an announced/called name back at the front of its queue. */
+  requeue({ id, list }) {
+    const L = listOf(list);
+    const i = state[L.a].findIndex((a) => a.id === id);
     if (i < 0) return;
-    const [item] = state.announced.splice(i, 1);
-    if (state.current && state.current.id === id) state.current = null;
-    state.queue.unshift({ id: item.id, name: item.name });
+    const [item] = state[L.a].splice(i, 1);
+    if (state.current && state.current.id === id && state.current.type === L.type) {
+      state.current = null;
+    }
+    state[L.q].unshift({ id: item.id, name: item.name });
   },
 
   /**
@@ -218,22 +254,22 @@ const actions = {
    * lost its state, e.g. after a redeploy on a host with an ephemeral disk).
    * Everything is sanitized; the screen comes back blank.
    */
-  restore({ queue, announced, title, idleMessage, showUpNext, theme }) {
+  restore({ queue, announced, callQueue, callAnnounced, title, idleMessage, showUpNext, theme }) {
     const item = (x) => {
       const name = x && cleanName(x.name);
       return name ? { id: newId(), name } : null;
     };
-    if (Array.isArray(queue)) {
-      state.queue = queue.slice(0, 2000).map(item).filter(Boolean);
-    }
-    if (Array.isArray(announced)) {
-      state.announced = announced.slice(0, 2000)
-        .map((a) => {
-          const i = item(a);
-          return i ? { ...i, at: Number(a.at) || Date.now() } : null;
-        })
-        .filter(Boolean);
-    }
+    const queueOf = (arr) => arr.slice(0, 2000).map(item).filter(Boolean);
+    const historyOf = (arr) => arr.slice(0, 2000)
+      .map((a) => {
+        const i = item(a);
+        return i ? { ...i, at: Number(a.at) || Date.now() } : null;
+      })
+      .filter(Boolean);
+    if (Array.isArray(queue)) state.queue = queueOf(queue);
+    if (Array.isArray(announced)) state.announced = historyOf(announced);
+    if (Array.isArray(callQueue)) state.callQueue = queueOf(callQueue);
+    if (Array.isArray(callAnnounced)) state.callAnnounced = historyOf(callAnnounced);
     state.current = null;
     actions.settings({ title, idleMessage, showUpNext, theme });
   },
@@ -246,15 +282,17 @@ const actions = {
     if (theme === 'dark' || theme === 'light') state.theme = theme;
   },
 
-  /** Reset parts of the state. */
+  /** Reset parts of the state (both channels). */
   reset({ scope }) {
     if (scope === 'announced') {
       state.announced = [];
+      state.callAnnounced = [];
     } else if (scope === 'queue') {
       state.queue = [];
+      state.callQueue = [];
     } else if (scope === 'all') {
-      const { title, idleMessage, showUpNext } = state;
-      state = { ...defaultState(), title, idleMessage, showUpNext };
+      const { title, idleMessage, showUpNext, theme } = state;
+      state = { ...defaultState(), title, idleMessage, showUpNext, theme };
     }
   },
 };

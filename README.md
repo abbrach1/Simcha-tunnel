@@ -19,8 +19,13 @@ Opening the root URL (`/`) shows a chooser so each phone can pick its role.
   reconnection and a visible Live / Reconnecting indicator on both screens.
 - **Bulk paste**: paste the whole camper list (one name per line) in one shot,
   or add names one at a time — including while announcements are running.
-- **Queue management**: reorder (↑/↓), edit (✎), remove (✕), or announce any
-  name immediately out of order (📣).
+- **Queue management**: reorder (↑/↓), edit, remove, or announce any name
+  immediately out of order (Show).
+- **Counselor calls**: a second channel for paging a counselor whose camper
+  has arrived. It has its own queue, "Call next counselor" button, history,
+  and up-next list — and takes over the screen the same way an arrival does
+  (shown with an orange "Counselor call — your camper is here" label).
+  Either channel can grab the screen at any time; Back undoes across both.
 - **Back / Blank screen** controls: re-show the previous name, or blank the
   display back to the welcome message between waves of arrivals.
 - **Announced history** with timestamps, and one-tap **Re-queue** if a name

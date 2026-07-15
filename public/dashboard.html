@@ -161,6 +161,21 @@
   }
 
   .empty-note { color: #888; font-size: 14px; padding: 4px 0; }
+  .hint-note { color: #666; font-size: 13px; margin-bottom: 8px; line-height: 1.4; }
+
+  #call-form { display: flex; gap: 8px; }
+  #call-input { flex: 1; min-width: 0; }
+  #call-form button { font-weight: 600; }
+  #btn-call-next {
+    display: block;
+    width: 100%;
+    margin: 8px 0 4px;
+    font-weight: 600;
+    background: #fff3e0;
+    border-color: #c98f3d;
+  }
+  #btn-call-next:active { background: #f5e3c8; }
+  #calls-section details { margin-top: 6px; }
 
   /* History */
   .hist-item { display: flex; align-items: center; gap: 10px; padding: 7px 0; border-bottom: 1px solid #eee; }
@@ -260,7 +275,7 @@
       </div>
     </div>
     <section>
-      <h2>Now on screen</h2>
+      <h2>Now on screen <span class="count" id="now-type"></span></h2>
       <div id="now-name" class="empty">Nothing — screen is on standby</div>
     </section>
 
@@ -288,6 +303,23 @@
         <summary>Already announced <span class="count" id="hist-count">(0)</span></summary>
         <ul id="history"></ul>
         <div class="empty-note" id="hist-empty">Nobody announced yet.</div>
+      </details>
+    </section>
+
+    <section id="calls-section">
+      <h2>Counselor calls <span class="count" id="call-count">(0)</span></h2>
+      <p class="hint-note">Put a counselor's name on the screen so they know their camper arrived. This takes over the screen the same way an arrival does.</p>
+      <form id="call-form">
+        <input id="call-input" type="text" placeholder="Counselor name" autocomplete="off" enterkeyhint="done">
+        <button type="submit">Add</button>
+      </form>
+      <button id="btn-call-next" type="button" disabled>Call next counselor</button>
+      <ul id="call-queue"></ul>
+      <div class="empty-note" id="call-empty">No counselor calls waiting.</div>
+      <details>
+        <summary>Call history <span class="count" id="call-hist-count">(0)</span></summary>
+        <ul id="call-history"></ul>
+        <div class="empty-note" id="call-hist-empty">No counselors called yet.</div>
       </details>
     </section>
 
@@ -390,6 +422,8 @@
 
     // Now showing
     const nowName = $('now-name');
+    const isCall = state.current && state.current.type === 'call';
+    $('now-type').textContent = state.current ? (isCall ? 'counselor call' : 'arrival') : '';
     if (state.current) {
       nowName.textContent = state.current.name;
       nowName.classList.remove('empty');
@@ -398,40 +432,60 @@
       nowName.classList.add('empty');
     }
 
-    // Queue
-    const queueEl = $('queue');
-    $('queue-count').textContent = `(${state.queue.length})`;
-    $('queue-empty').style.display = state.queue.length ? 'none' : 'block';
-    queueEl.innerHTML = state.queue.map((q, i) => `
-      <li class="item ${i === 0 ? 'next-up' : ''}" data-id="${q.id}">
+    const queueItems = (items, list) => items.map((q, i) => `
+      <li class="item ${i === 0 ? 'next-up' : ''}" data-id="${q.id}" data-list="${list}">
         <span class="pos">${i + 1}.</span>
         <span class="name">${esc(q.name)}</span>
         <span class="btns">
           <button class="small" data-act="show" title="Show on screen now">Show</button>
           <button class="small" data-act="up" title="Move up" ${i === 0 ? 'disabled' : ''}>↑</button>
-          <button class="small" data-act="down" title="Move down" ${i === state.queue.length - 1 ? 'disabled' : ''}>↓</button>
+          <button class="small" data-act="down" title="Move down" ${i === items.length - 1 ? 'disabled' : ''}>↓</button>
           <button class="small" data-act="edit" title="Edit">Edit</button>
           <button class="small danger" data-act="remove" title="Remove">✕</button>
         </span>
       </li>`).join('');
 
-    // History (newest first; the top entry may still be on screen)
-    const histEl = $('history');
+    const histItems = (items, list) => {
+      const curId = state.current && state.current.id;
+      const curList = isCall ? 'calls' : 'arrivals';
+      return items.map((a) => `
+        <li class="hist-item" data-id="${a.id}" data-list="${list}">
+          <span class="name">${esc(a.name)}</span>
+          <span class="time">${fmtTime(a.at)}${a.id === curId && list === curList ? ' · on screen' : ''}</span>
+          <button class="small" data-act="requeue" title="Show again">Re-queue</button>
+        </li>`).join('');
+    };
+
+    // Arrivals queue + history
+    $('queue-count').textContent = `(${state.queue.length})`;
+    $('queue-empty').style.display = state.queue.length ? 'none' : 'block';
+    $('queue').innerHTML = queueItems(state.queue, 'arrivals');
+
     $('hist-count').textContent = `(${state.announced.length})`;
     $('hist-empty').style.display = state.announced.length ? 'none' : 'block';
-    const curId = state.current && state.current.id;
-    histEl.innerHTML = state.announced.map((a) => `
-      <li class="hist-item" data-id="${a.id}">
-        <span class="name">${esc(a.name)}</span>
-        <span class="time">${fmtTime(a.at)}${a.id === curId ? ' · on screen' : ''}</span>
-        <button class="small" data-act="requeue" title="Announce again">Re-queue</button>
-      </li>`).join('');
+    $('history').innerHTML = histItems(state.announced, 'arrivals');
+
+    // Counselor calls queue + history
+    const callQ = state.callQueue || [];
+    const callA = state.callAnnounced || [];
+    $('call-count').textContent = `(${callQ.length})`;
+    $('call-empty').style.display = callQ.length ? 'none' : 'block';
+    $('call-queue').innerHTML = queueItems(callQ, 'calls');
+
+    $('call-hist-count').textContent = `(${callA.length})`;
+    $('call-hist-empty').style.display = callA.length ? 'none' : 'block';
+    $('call-history').innerHTML = histItems(callA, 'calls');
+
+    $('btn-call-next').disabled = callQ.length === 0;
+    $('btn-call-next').textContent = callQ.length
+      ? `Call next counselor — ${callQ[0].name}`
+      : 'Call next counselor';
 
     // Action bar
     const next = state.queue[0];
     $('btn-next').disabled = !next;
     $('btn-next-sub').textContent = next ? next.name : 'queue is empty';
-    $('btn-prev').disabled = state.announced.length === 0;
+    $('btn-prev').disabled = state.announced.length === 0 && callA.length === 0;
     $('btn-clear').disabled = !state.current;
 
     // Settings (don't clobber fields while the user is typing)
@@ -450,13 +504,16 @@
   let restoreDismissed = false;
 
   function updateBackup() {
-    const hasData = state.queue.length || state.announced.length || state.current;
+    const hasData = state.queue.length || state.announced.length || state.current
+      || (state.callQueue || []).length || (state.callAnnounced || []).length;
     if (hasData) {
       try {
         localStorage.setItem(BACKUP_KEY, JSON.stringify({
           at: Date.now(),
           queue: state.queue,
           announced: state.announced,
+          callQueue: state.callQueue || [],
+          callAnnounced: state.callAnnounced || [],
           title: state.title,
           idleMessage: state.idleMessage,
           showUpNext: state.showUpNext,
@@ -472,7 +529,8 @@
     }
     let backup = null;
     try { backup = JSON.parse(localStorage.getItem(BACKUP_KEY)); } catch { /* ignore */ }
-    if (!backup || (!backup.queue?.length && !backup.announced?.length)) return;
+    if (!backup || (!backup.queue?.length && !backup.announced?.length
+        && !backup.callQueue?.length && !backup.callAnnounced?.length)) return;
     const when = new Date(backup.at).toLocaleString([], { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
     $('restore-text').textContent =
       `The server has no data, but this phone has a backup from ${when} `
@@ -559,19 +617,34 @@
   document.querySelector('main').addEventListener('click', (e) => {
     const btn = e.target.closest('button[data-act]');
     if (!btn) return;
-    const id = btn.closest('[data-id]').dataset.id;
+    const row = btn.closest('[data-id]');
+    const id = row.dataset.id;
+    const list = row.dataset.list || 'arrivals';
     const act = btn.dataset.act;
 
-    if (act === 'up' || act === 'down') api('move', { id, dir: act });
-    else if (act === 'show') api('show', { id });
-    else if (act === 'remove') api('remove', { id });
-    else if (act === 'requeue') { api('requeue', { id }); toast('Moved to the front of the queue'); }
+    if (act === 'up' || act === 'down') api('move', { id, dir: act, list });
+    else if (act === 'show') api('show', { id, list });
+    else if (act === 'remove') api('remove', { id, list });
+    else if (act === 'requeue') { api('requeue', { id, list }); toast('Moved to the front of the queue'); }
     else if (act === 'edit') {
-      const item = state.queue.find((q) => q.id === id);
+      const src = list === 'calls' ? (state.callQueue || []) : state.queue;
+      const item = src.find((q) => q.id === id);
       const name = prompt('Edit name:', item ? item.name : '');
-      if (name && name.trim()) api('update', { id, name: name.trim() });
+      if (name && name.trim()) api('update', { id, name: name.trim(), list });
     }
   });
+
+  // ---- Counselor calls ----------------------------------------------------------
+  $('call-form').addEventListener('submit', (e) => {
+    e.preventDefault();
+    const input = $('call-input');
+    const name = input.value.trim();
+    if (!name) return;
+    api('add', { names: [name], list: 'calls' });
+    input.value = '';
+    input.focus();
+  });
+  $('btn-call-next').addEventListener('click', () => api('next', { list: 'calls' }));
 
   // ---- Main action bar -----------------------------------------------------------------
   $('btn-next').addEventListener('click', () => api('next'));

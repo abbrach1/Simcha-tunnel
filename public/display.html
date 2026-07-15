@@ -49,6 +49,10 @@
     color: #999;
     margin-bottom: 2.5vmin;
   }
+  #kicker.call {
+    color: #e8a33d;
+    font-weight: 700;
+  }
 
   #name {
     font-weight: 800;
@@ -72,11 +76,17 @@
     background: #111;
     border-top: 1px solid #2a2a2a;
   }
+  #upnext .panels { display: flex; gap: 6vmin; }
+  #upnext .panel { flex: 1; min-width: 0; }
+  @media (orientation: portrait) {
+    #upnext .panels { flex-direction: column; gap: 1.5vmin; }
+  }
   #upnext .un-title {
     color: #888;
     font-size: clamp(15px, 3.2vmin, 32px);
     margin-bottom: .4vmin;
   }
+  #upnext .panel.calls .un-title { color: #e8a33d; }
   #upnext ol { list-style: none; }
   #upnext li {
     font-size: clamp(24px, 6vmin, 64px);
@@ -102,6 +112,8 @@
   body.light #idle-sub { color: #555; }
   body.light #upnext { background: #f0f0f0; border-top-color: #ccc; }
   body.light #upnext .un-title { color: #666; }
+  body.light #kicker.call { color: #b25a00; }
+  body.light #upnext .panel.calls .un-title { color: #b25a00; }
   body.light #upnext li { color: #333; border-top-color: #ddd; }
   body.light #upnext li:first-child { color: #000; }
   body.light #upnext li .num { color: #888; }
@@ -200,8 +212,10 @@
     const themeMeta = document.querySelector('meta[name=theme-color]');
     if (themeMeta) themeMeta.content = light ? '#ffffff' : '#000000';
 
+    const isCall = state.current && state.current.type === 'call';
+    kickerEl.classList.toggle('call', !!isCall);
     if (state.current) {
-      kickerEl.textContent = 'Now arriving';
+      kickerEl.textContent = isCall ? 'Counselor call — your camper is here' : 'Now arriving';
       idleSubEl.textContent = '';
       nameEl.textContent = state.current.name;
     } else {
@@ -210,15 +224,25 @@
       idleSubEl.textContent = state.idleMessage || '';
     }
 
-    if (state.showUpNext && state.queue.length > 0) {
-      // Portrait phones fit more rows than landscape ones.
-      const max = innerHeight > innerWidth ? 7 : 3;
-      const shown = state.queue.slice(0, max);
-      const more = state.queue.length - shown.length;
-      upnextEl.innerHTML = '<div class="un-title">Up next</div><ol>'
-        + shown.map((q, i) => `<li><span class="num">${i + 1}.</span>${esc(q.name)}</li>`).join('')
-        + '</ol>'
-        + (more > 0 ? `<div class="more">+ ${more} more</div>` : '');
+    // Up-next panels: arrivals and counselor calls each get one when non-empty.
+    const panels = [];
+    if (state.showUpNext) {
+      if (state.queue.length) panels.push({ title: 'Up next', cls: '', items: state.queue });
+      if ((state.callQueue || []).length) panels.push({ title: 'Counselor calls', cls: 'calls', items: state.callQueue });
+    }
+    if (panels.length) {
+      // Portrait fits more rows than landscape; split the room when both show.
+      const portrait = innerHeight > innerWidth;
+      const max = portrait ? (panels.length > 1 ? 4 : 7) : 3;
+      upnextEl.innerHTML = '<div class="panels">' + panels.map((p) => {
+        const shown = p.items.slice(0, max);
+        const more = p.items.length - shown.length;
+        return `<div class="panel ${p.cls}"><div class="un-title">${p.title}</div><ol>`
+          + shown.map((q, i) => `<li><span class="num">${i + 1}.</span>${esc(q.name)}</li>`).join('')
+          + '</ol>'
+          + (more > 0 ? `<div class="more">+ ${more} more</div>` : '')
+          + '</div>';
+      }).join('') + '</div>';
       upnextEl.classList.remove('hidden');
     } else {
       upnextEl.classList.add('hidden');
