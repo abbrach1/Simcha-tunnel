@@ -33,7 +33,7 @@ const cleanName = (s) => String(s || '').replace(/\s+/g, ' ').trim().slice(0, 12
 
 const defaultState = () => ({
   title: 'Camp Simcha',
-  idleMessage: 'Waiting for the next arrival',
+  idleMessage: 'No campers to call currently',
   showUpNext: true,
   theme: 'dark',          // 'dark' | 'light' — light is for outdoor daylight
   flashOn: false,         // flash the display to attract attention

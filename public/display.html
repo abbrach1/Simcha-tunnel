@@ -344,7 +344,11 @@
     } else {
       kickerEl.textContent = 'Standby';
       nameEl.textContent = state.title;
-      idleSubEl.textContent = state.idleMessage || '';
+      // Boards saved under an older default message show the current default.
+      const OLD_DEFAULTS = ['Waiting for the next arrival', 'Welcome to camp! 🎉'];
+      idleSubEl.textContent = (!state.idleMessage || OLD_DEFAULTS.includes(state.idleMessage))
+        ? 'No campers to call currently'
+        : state.idleMessage;
     }
 
     const split = !!(call && arrival);

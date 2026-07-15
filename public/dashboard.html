@@ -557,7 +557,11 @@
     // Settings (don't clobber fields while the user is typing)
     if (!editingSettings) {
       $('set-title').value = state.title;
-      $('set-idle').value = state.idleMessage;
+      // Boards saved under an older default message show the current default.
+      const OLD_DEFAULTS = ['Waiting for the next arrival', 'Welcome to camp! 🎉'];
+      $('set-idle').value = (!state.idleMessage || OLD_DEFAULTS.includes(state.idleMessage))
+        ? 'No campers to call currently'
+        : state.idleMessage;
       $('set-upnext').checked = state.showUpNext;
       $('set-light').checked = state.theme === 'light';
       $('set-flash').value = state.flashText || '';
