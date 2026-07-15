@@ -719,7 +719,7 @@
   // reload the page (rate-limited).
   function hardReload() {
     const last = Number(sessionStorage.getItem('simcha-hard-reload-at') || 0);
-    if (Date.now() - last < 180000) return;
+    if (Date.now() - last < 90000) return;
     sessionStorage.setItem('simcha-hard-reload-at', String(Date.now()));
     location.reload();
   }
@@ -1018,8 +1018,9 @@
     const now = Date.now();
     if (fbActive) {
       if (now - lastSeen > 30000) restartFirebase();
-      // Nothing (live channel OR plain REST) for 2 minutes → real reload.
-      if (now - Math.max(fbHealthyAt, lastRestOk, pageLoadAt) > 120000) hardReload();
+      // Nothing (live channel OR plain REST) for 75s → do exactly what a
+      // manual refresh does, automatically, until the connection is back.
+      if (now - Math.max(fbHealthyAt, lastRestOk, pageLoadAt) > 75000) hardReload();
       return;
     }
     if (now - lastSeen > 30000) {
