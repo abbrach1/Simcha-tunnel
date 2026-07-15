@@ -4,19 +4,29 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#0b1026">
-<title>Simcha Arrivals — Display</title>
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Camp Simcha">
+<meta name="format-detection" content="telephone=no">
+<title>Camp Simcha — Display</title>
 <link rel="icon" href="favicon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="manifest" href="manifest.webmanifest">
 <style>
   * { margin: 0; padding: 0; box-sizing: border-box; }
 
   html, body {
     height: 100%;
     overflow: hidden;
+    overscroll-behavior: none;
     background: #0b1026;
     color: #fff;
     font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
     -webkit-user-select: none;
     user-select: none;
+    -webkit-touch-callout: none;
+    touch-action: manipulation;
   }
 
   body {
@@ -258,6 +268,17 @@
   }
   connect();
 
+  // iOS Safari silently kills SSE connections in the background —
+  // reconnect fresh whenever the page becomes visible again.
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible' && es) {
+      es.onerror = null;
+      es.close();
+      retryDelay = 1000;
+      connect();
+    }
+  });
+
   // ---- Keep the phone awake -----------------------------------------------------
   let wakeLock = null;
   async function requestWakeLock() {
@@ -272,16 +293,28 @@
     if (document.visibilityState === 'visible') requestWakeLock();
   });
 
-  // ---- Fullscreen on tap -----------------------------------------------------------
+  // ---- Fullscreen -------------------------------------------------------------------
+  // iPhone Safari has no Fullscreen API; the app-like experience there comes
+  // from Add to Home Screen (standalone mode) instead.
+  const isStandalone = navigator.standalone === true
+    || matchMedia('(display-mode: standalone)').matches
+    || matchMedia('(display-mode: fullscreen)').matches;
+  const canFullscreen = !!document.documentElement.requestFullscreen;
+
+  if (isStandalone) {
+    hintEl.classList.add('faded');
+  } else if (!canFullscreen) {
+    hintEl.textContent = 'Tip: Share → “Add to Home Screen” for a fullscreen app';
+  }
+
   stage.addEventListener('click', () => {
     hintEl.classList.add('faded');
-    const el = document.documentElement;
-    if (!document.fullscreenElement && el.requestFullscreen) {
-      el.requestFullscreen().catch(() => {});
+    if (canFullscreen && !document.fullscreenElement) {
+      document.documentElement.requestFullscreen().catch(() => {});
     }
     requestWakeLock();
   });
-  setTimeout(() => hintEl.classList.add('faded'), 8000);
+  setTimeout(() => hintEl.classList.add('faded'), 12000);
 
   addEventListener('resize', fitText);
 })();

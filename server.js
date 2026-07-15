@@ -27,7 +27,7 @@ const STATE_FILE = path.join(DATA_DIR, 'state.json');
 // ---------------------------------------------------------------------------
 
 const defaultState = () => ({
-  title: 'Simcha Arrivals',
+  title: 'Camp Simcha',
   idleMessage: 'Welcome to camp! 🎉',
   showUpNext: true,
   current: null,          // { id, name, at } currently on the big screen
@@ -356,7 +356,7 @@ const server = http.createServer(async (req, res) => {
 
 loadState();
 server.listen(PORT, () => {
-  console.log(`\n  Simcha Arrivals is running!\n`);
+  console.log(`\n  Camp Simcha Arrivals is running!\n`);
   console.log(`  Dashboard:  http://localhost:${PORT}/dashboard`);
   console.log(`  Display:    http://localhost:${PORT}/display\n`);
   console.log(`  Open the dashboard on the phone at the gate, and the`);

@@ -1,6 +1,6 @@
-# Simcha Arrivals 🎉
+# Camp Simcha Arrivals 🎉
 
-A live arrival announcement board for camp. Campers stream in, one person spots
+A live arrival announcement board for Camp Simcha. Campers stream in, one person spots
 them from the gate, and the announcer by the stage reads each name off a big
 screen — everything stays in sync in real time.
 
@@ -38,6 +38,10 @@ Opening the root URL (`/`) shows a chooser so each phone can pick its role.
 - **Keyboard shortcuts** when driving from a laptop: `Space`/`→` announce
   next, `←` go back.
 - **Zero dependencies** — plain Node.js, nothing to `npm install`.
+- **Optimized for iPhone**: installable as a home-screen app (fullscreen,
+  no browser chrome), safe-area aware around the notch/home indicator, no
+  accidental zoom when typing names, and connections automatically re-sync
+  when Safari comes back from the background.
 
 ## Running it
 
@@ -57,6 +61,23 @@ Then:
    the camper list, and start tapping **Announce next ▶**.
 
 The port defaults to `3000`; override with `PORT=8080 node server.js`.
+
+### iPhone setup (recommended)
+
+iPhone Safari doesn't have a fullscreen button — instead, install the site as
+a home-screen app on both phones:
+
+1. Open the URL in Safari.
+2. Tap **Share** (the square with the arrow) → **Add to Home Screen** → **Add**.
+3. Launch it from the new **Camp Simcha** 🎉 icon — it opens fullscreen with
+   no address bar.
+
+Two more tips for the stage phone:
+
+- The page asks the phone to stay awake automatically (iOS 16.4+), but as a
+  backup set **Settings → Display & Brightness → Auto-Lock → Never** for the
+  event.
+- Turn the phone landscape for the biggest possible name display.
 
 ### Hosting options
 
