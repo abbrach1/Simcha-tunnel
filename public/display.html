@@ -470,15 +470,30 @@
     fbHealthyAt = lastSeen;
   }
 
-  // Hammer of last resort: if neither the live channel nor plain REST reads
-  // have reached the server for 2 minutes, do exactly what a human would —
-  // reload the page (rate-limited; the display repaints from cache, so the
-  // reload is seamless).
-  function hardReload() {
+  // Instant recovery: as soon as the connection drops, do exactly what a
+  // manual refresh does — reload the page. Guard: only reload if the page
+  // itself is fetchable right now; reloading while truly offline would
+  // strand the browser on its error page where nothing of ours runs. While
+  // offline this keeps checking and reloads the instant the network is back.
+  // The display repaints from cache on load, so reloads are seamless.
+  async function reloadIfReachable() {
     const last = Number(sessionStorage.getItem('simcha-hard-reload-at') || 0);
-    if (Date.now() - last < 90000) return;
-    sessionStorage.setItem('simcha-hard-reload-at', String(Date.now()));
-    location.reload();
+    if (Date.now() - last < 20000) return;
+    try {
+      const r = await fetch(location.pathname, { cache: 'no-store' });
+      if (!r.ok) return;
+      sessionStorage.setItem('simcha-hard-reload-at', String(Date.now()));
+      location.reload();
+    } catch { /* offline — try again on the next tick / wake event */ }
+  }
+
+  function maybeReload() {
+    if (!fbActive) return;
+    const hadContact = fbHealthyAt || lastRestOk;
+    const staleMs = Date.now() - Math.max(fbHealthyAt, lastRestOk, pageLoadAt);
+    // 12s of silence after a working connection = it dropped (REST alone
+    // reports every 4s while healthy). Allow 30s grace on a fresh boot.
+    if (staleMs > (hadContact ? 12000 : 30000)) reloadIfReachable();
   }
 
   // Decode Firestore's REST document format into plain JS.
@@ -780,7 +795,9 @@
 
   function reconnectNow() {
     if (fbActive) {
-      // Fetch fresh data from the server right now; rebuild if it fails.
+      // Fetch fresh data from the server right now; rebuild if it fails —
+      // and if we're already stale, refresh the page immediately.
+      maybeReload();
       if (fbProbe) fbProbe();
       return;
     }
@@ -800,12 +817,8 @@
     if (polling || !lastSeen) return;
     const now = Date.now();
     if (fbActive) {
+      maybeReload(); // instant refresh-on-drop (reachability-guarded)
       if (now - lastSeen > 30000) restartFirebase();
-      // Nothing (live channel OR plain REST) for 75s → do exactly what a
-      // manual refresh does, automatically — and keep doing it until the
-      // connection is back. A reload always recovers; this guarantees the
-      // screen can never sit stale waiting for a human.
-      if (now - Math.max(fbHealthyAt, lastRestOk, pageLoadAt) > 75000) hardReload();
       return;
     }
     if (now - lastSeen > 30000) {
