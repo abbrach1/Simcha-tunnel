@@ -141,11 +141,18 @@ Two more tips for the stage phone:
        match /databases/{database}/documents {
          match /boards/main { allow read, write: if true; }
          match /boards/main/clients/{id} { allow read, write: if true; }
+         match /boards/main/log/{id} { allow read, create: if true; }
        }
      }
      ```
 
-     This allows exactly the two paths the board uses and nothing else.
+     This allows exactly the paths the board uses and nothing else. The
+     `log` subcollection is a permanent archive: every announcement and
+     counselor call is appended there with a server timestamp (create-only —
+     the rules above don't even allow the app to delete or edit entries).
+     Resets and restores only touch the live board, so the log survives
+     everything; browse or export it in the Firebase console under
+     Firestore → boards → main → log.
      Like the rest of the app, access control is "anyone with the URL" —
      the web config is a public identifier, not a secret.
 

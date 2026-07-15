@@ -746,14 +746,37 @@
         updateBackup();
       };
 
-      fbApply = (action, params) => fsMod.runTransaction(db, async (tx) => {
-        const snap = await tx.get(boardRef);
-        const st = snap.exists()
-          ? { ...SimchaLogic.defaultState(), ...snap.data() }
-          : SimchaLogic.defaultState();
-        if (!SimchaLogic.applyAction(st, action, params || {})) throw new Error('Unknown action');
-        tx.set(boardRef, st);
-      }).then((r) => { lastSeen = Date.now(); return r; });
+      // Permanent archive: every announcement/call also gets its own
+      // append-only document in boards/main/log. Resets and restores only
+      // touch the live board doc — the log is never deleted from the app.
+      const logCol = fsMod.collection(db, 'boards', 'main', 'log');
+      fbApply = (action, params) => {
+        let logEntry = null;
+        return fsMod.runTransaction(db, async (tx) => {
+          logEntry = null; // reset per transaction attempt
+          const snap = await tx.get(boardRef);
+          const st = snap.exists()
+            ? { ...SimchaLogic.defaultState(), ...snap.data() }
+            : SimchaLogic.defaultState();
+          const isCallList = params && params.list === 'calls';
+          const beforeCur = isCallList ? st.currentCall : st.currentArrival;
+          const beforeId = beforeCur && beforeCur.id;
+          if (!SimchaLogic.applyAction(st, action, params || {})) throw new Error('Unknown action');
+          if (action === 'next' || action === 'show') {
+            const cur = isCallList ? st.currentCall : st.currentArrival;
+            if (cur && cur.id !== beforeId) {
+              logEntry = { name: cur.name, type: isCallList ? 'call' : 'arrival' };
+            }
+          }
+          tx.set(boardRef, st);
+        }).then((r) => {
+          lastSeen = Date.now();
+          if (logEntry) {
+            fsMod.addDoc(logCol, { ...logEntry, at: fsMod.serverTimestamp() }).catch(() => {});
+          }
+          return r;
+        });
+      };
 
       const unsubBoard = fsMod.onSnapshot(boardRef, { includeMetadataChanges: true }, (snap) => {
         latest = snap.data() || SimchaLogic.defaultState();
