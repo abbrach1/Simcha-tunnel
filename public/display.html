@@ -66,41 +66,38 @@
     font-weight: 600;
   }
 
-  /* Attention flash: red blinking band + pulsing screen background */
+  /* Attention flash: FULL-SCREEN takeover — the whole display blinks red
+     with the flash message huge in the center. */
   #flashbar {
-    flex-shrink: 0;
+    position: fixed;
+    inset: 0;
+    z-index: 50;
+    display: flex;
+    align-items: center;
+    justify-content: center;
     text-align: center;
-    font-weight: 800;
-    font-size: clamp(22px, 6vmin, 70px);
-    line-height: 1.15;
-    padding: 1.6vmin 4vmin;
-    padding-top: max(1.6vmin, env(safe-area-inset-top));
+    padding: 4vmin;
     background: #d92b2b;
     color: #fff;
-    text-transform: uppercase;
-    letter-spacing: .03em;
     animation: flashband 1s steps(2, jump-none) infinite;
+  }
+  #flashbar .fb-text {
+    font-weight: 900;
+    line-height: 1.1;
+    text-transform: uppercase;
+    letter-spacing: .02em;
+    width: 100%;
     overflow-wrap: break-word;
   }
   #flashbar.hidden { display: none; }
   @keyframes flashband {
     0%, 100% { background: #d92b2b; }
-    50% { background: #6e0f0f; }
-  }
-  body.flash { animation: flashbg 1s steps(2, jump-none) infinite; }
-  @keyframes flashbg {
-    0%, 100% { background-color: #000; }
-    50% { background-color: #3d0d0d; }
-  }
-  body.light.flash { animation: flashbg-light 1s steps(2, jump-none) infinite; }
-  @keyframes flashbg-light {
-    0%, 100% { background-color: #fff; }
-    50% { background-color: #ffd6d6; }
+    50% { background: #5c0b0b; }
   }
   @media (prefers-reduced-motion: reduce) {
-    #flashbar, body.flash, body.light.flash { animation: none; }
+    #flashbar { animation: none; }
   }
-  body.flash #hint, body.split #hint { display: none; }
+  body.split #hint { display: none; }
 
   /* Counselor-call half: when an arrival and a call are on screen together
      the screen splits into two equal halves — camper on top, counselor call
@@ -143,9 +140,9 @@
 
   #idle-sub {
     margin-top: 3vmin;
-    font-size: clamp(16px, 4vmin, 42px);
-    color: #999;
-    font-weight: 400;
+    font-size: clamp(24px, 6.5vmin, 72px);
+    color: #bbb;
+    font-weight: 600;
   }
 
   #upnext {
@@ -241,7 +238,7 @@
   <div id="hint">Tap anywhere for fullscreen</div>
   <div id="status" class="offline"><span class="dot"></span><span id="status-text">Connecting…</span></div>
 
-  <div id="flashbar" class="hidden"></div>
+  <div id="flashbar" class="hidden"><div class="fb-text"></div></div>
 
   <div id="stage">
     <div id="kicker">Standby</div>
@@ -300,6 +297,11 @@
     if (document.body.classList.contains('split')) {
       fitInto(callbar.querySelector('.cb-name'), callbar, 0.94, 0.55);
     }
+    const flashbar = document.getElementById('flashbar');
+    if (state && state.flashOn) {
+      // Text spans the full width and wraps; the height governs the fit.
+      fitInto(flashbar.querySelector('.fb-text'), flashbar, 10, 0.78);
+    }
   }
 
   // ---- Render ----------------------------------------------------------------
@@ -312,11 +314,11 @@
     const themeMeta = document.querySelector('meta[name=theme-color]');
     if (themeMeta) themeMeta.content = light ? '#ffffff' : '#000000';
 
-    // Attention flash: red band with the flash message, whole screen pulses.
+    // Attention flash: full-screen red takeover with the message centered.
     const flashbar = document.getElementById('flashbar');
     document.body.classList.toggle('flash', !!state.flashOn);
     if (state.flashOn) {
-      flashbar.textContent = state.flashText || 'Waiting by the tunnel';
+      flashbar.querySelector('.fb-text').textContent = state.flashText || 'Waiting by the tunnel';
       flashbar.classList.remove('hidden');
     } else {
       flashbar.classList.add('hidden');
