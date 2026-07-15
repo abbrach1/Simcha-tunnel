@@ -268,8 +268,13 @@
   }
 
   // ---- Live connection ---------------------------------------------------------
+  // Built to stay connected: fast retries (0.5s → 3s cap), a heartbeat
+  // watchdog that catches silently-dead connections, and instant reconnect
+  // when the network comes back or the page wakes up.
   let es = null;
-  let retryDelay = 1000;
+  let retryDelay = 500;
+  let retryTimer = null;
+  let lastSeen = 0;
   let fadeTimer = null;
 
   function setStatus(online) {
@@ -283,30 +288,50 @@
   }
 
   function connect() {
+    clearTimeout(retryTimer);
+    if (es) {
+      es.onerror = null;
+      es.onmessage = null;
+      try { es.close(); } catch { /* already closed */ }
+    }
     es = new EventSource('/events?role=display');
-    es.onopen = () => { retryDelay = 1000; setStatus(true); };
+    es.onopen = () => { retryDelay = 500; lastSeen = Date.now(); setStatus(true); };
     es.onmessage = (e) => {
+      lastSeen = Date.now();
       state = JSON.parse(e.data);
       render();
     };
+    es.addEventListener('ping', () => { lastSeen = Date.now(); });
     es.onerror = () => {
       setStatus(false);
-      es.close();
-      setTimeout(connect, retryDelay);
-      retryDelay = Math.min(retryDelay * 2, 15000);
+      try { es.close(); } catch { /* ignore */ }
+      clearTimeout(retryTimer);
+      retryTimer = setTimeout(connect, retryDelay);
+      retryDelay = Math.min(retryDelay * 2, 3000);
     };
   }
   connect();
 
-  // iOS Safari silently kills SSE connections in the background —
-  // reconnect fresh whenever the page becomes visible again.
-  document.addEventListener('visibilitychange', () => {
-    if (document.visibilityState === 'visible' && es) {
-      es.onerror = null;
-      es.close();
-      retryDelay = 1000;
-      connect();
+  function reconnectNow() {
+    retryDelay = 500;
+    connect();
+  }
+
+  // The server pings every 10s; if nothing (data or ping) arrives for 30s
+  // the connection died without firing an error — rebuild it.
+  setInterval(() => {
+    if (lastSeen && Date.now() - lastSeen > 30000) {
+      setStatus(false);
+      reconnectNow();
     }
+  }, 5000);
+
+  // Reconnect immediately when the network returns or the page wakes up
+  // (iOS Safari kills SSE connections in the background).
+  addEventListener('online', reconnectNow);
+  addEventListener('pageshow', (e) => { if (e.persisted) reconnectNow(); });
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') reconnectNow();
   });
 
   // ---- Keep the phone awake -----------------------------------------------------

@@ -369,13 +369,15 @@ const server = http.createServer(async (req, res) => {
     res.write(`data: ${JSON.stringify(snapshot())}\n\n`);
     broadcast(); // update everyone's connected-device counts
 
+    // Heartbeat as a real SSE event (comment lines are invisible to
+    // EventSource) so clients can detect a silently-dead connection.
     const keepAlive = setInterval(() => {
       try {
-        res.write(': ping\n\n');
+        res.write('event: ping\ndata: {}\n\n');
       } catch {
         /* cleaned up below */
       }
-    }, 25000);
+    }, 10000);
 
     req.on('close', () => {
       clearInterval(keepAlive);

@@ -15,8 +15,12 @@ Opening the root URL (`/`) shows a chooser so each phone can pick its role.
 
 ## Features
 
-- **Real-time sync** between all phones via Server-Sent Events, with automatic
-  reconnection and a visible Live / Reconnecting indicator on both screens.
+- **Real-time sync** between all phones via Server-Sent Events, built to stay
+  connected: retries every 0.5–3 s after a drop, a heartbeat watchdog catches
+  connections that die silently (Wi-Fi blips), and it reconnects instantly
+  when the network returns or the phone wakes. On reconnect the full state
+  re-syncs, so nothing shown is ever stale. Both screens show a visible
+  Live / Reconnecting indicator.
 - **Bulk paste**: paste the whole camper list (one name per line) in one shot,
   or add names one at a time — including while announcements are running.
 - **Queue management**: reorder (↑/↓), edit, remove, or announce any name
