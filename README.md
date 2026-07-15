@@ -106,13 +106,34 @@ Two more tips for the stage phone:
   It's a plain Node app — build command: none, start command:
   `node server.js`. Note that on hosts with ephemeral disks the saved state
   resets on redeploy; set `DATA_DIR` to a mounted volume to persist it.
+- **Vercel**: supported via a separate serverless backend (`api/[action].js`
+  + `vercel.json`). Vercel can't run the long-lived server (no shared memory,
+  no SSE, no disk), so on Vercel the state lives in Redis and the phones
+  automatically fall back from SSE to polling every 1.5 s. Setup:
+  1. Import the repo into Vercel (no build command needed).
+  2. In the Vercel dashboard, add the **Upstash for Redis** (or Vercel KV)
+     integration to the project — this sets `KV_REST_API_URL` and
+     `KV_REST_API_TOKEN` automatically. Without it, `/api/*` returns a clear
+     "Storage not configured" error.
+  3. Deploy. `/`, `/dashboard`, and `/display` work as usual.
+
+  On Vercel, updates reach other phones within ~1.5 s (polling) instead of
+  instantly (SSE), and simultaneous admin actions stay safe via a
+  compare-and-swap write loop in Redis. The long-running `server.js` is
+  still there for local / Render use — same features, same pages.
 
 ## How it works
 
+- `lib/logic.js` — all the queue/screen/restore logic, shared by both
+  runtimes below. Pure functions over a state object.
 - `server.js` — zero-dependency Node HTTP server. Holds the state (queue,
   current name, history, settings), exposes small `POST /api/*` actions, and
   pushes every change to all connected phones over an SSE stream (`/events`).
   State is debounce-saved to `data/state.json`.
+- `api/[action].js` — the same API as Vercel serverless functions, with
+  state in Redis (Upstash / Vercel KV), compare-and-swap writes, and
+  heartbeat-based connected-device counts. The frontend detects the missing
+  SSE endpoint and polls `GET /api/state` instead.
 - `public/dashboard.html` — the control UI (self-contained HTML/CSS/JS).
 - `public/display.html` — the stage screen (self-contained HTML/CSS/JS).
 - `public/chooser.html` — role picker served at `/`.

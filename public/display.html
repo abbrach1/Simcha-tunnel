@@ -324,6 +324,39 @@
   let lastSeen = 0;
   let fadeTimer = null;
 
+  // On serverless hosts (e.g. Vercel) there is no SSE endpoint; after a few
+  // quick SSE failures we fall back to polling GET /api/state instead.
+  const clientId = Math.random().toString(36).slice(2, 10);
+  let polling = false;
+  let pollTimer = null;
+  let sseFailures = 0;
+
+  async function pollNow() {
+    clearTimeout(pollTimer);
+    try {
+      const r = await fetch('/api/state?role=display&id=' + clientId, { cache: 'no-store' });
+      if (!r.ok) throw new Error('poll failed');
+      handleState(await r.json());
+      lastSeen = Date.now();
+      setStatus(true);
+    } catch {
+      setStatus(false);
+    }
+    pollTimer = setTimeout(pollNow, 1500);
+  }
+
+  function startPolling() {
+    if (polling) return;
+    polling = true;
+    clearTimeout(retryTimer);
+    if (es) {
+      es.onerror = null;
+      es.onmessage = null;
+      try { es.close(); } catch { /* ignore */ }
+    }
+    pollNow();
+  }
+
   function setStatus(online) {
     statusEl.classList.toggle('offline', !online);
     statusText.textContent = online ? 'Live' : 'Reconnecting…';
@@ -402,7 +435,7 @@
       try { es.close(); } catch { /* already closed */ }
     }
     es = new EventSource('/events?role=display');
-    es.onopen = () => { retryDelay = 500; lastSeen = Date.now(); setStatus(true); };
+    es.onopen = () => { retryDelay = 500; sseFailures = 0; lastSeen = Date.now(); setStatus(true); };
     es.onmessage = (e) => {
       lastSeen = Date.now();
       handleState(JSON.parse(e.data));
@@ -411,6 +444,10 @@
     es.onerror = () => {
       setStatus(false);
       try { es.close(); } catch { /* ignore */ }
+      if (++sseFailures >= 3) {
+        startPolling();
+        return;
+      }
       clearTimeout(retryTimer);
       retryTimer = setTimeout(connect, retryDelay);
       retryDelay = Math.min(retryDelay * 2, 3000);
@@ -419,14 +456,19 @@
   connect();
 
   function reconnectNow() {
+    if (polling) {
+      pollNow();
+      return;
+    }
     retryDelay = 500;
     connect();
   }
 
   // The server pings every 10s; if nothing (data or ping) arrives for 30s
-  // the connection died without firing an error — rebuild it.
+  // the connection died without firing an error — rebuild it. (Polling mode
+  // has its own success/failure signal on every poll.)
   setInterval(() => {
-    if (lastSeen && Date.now() - lastSeen > 30000) {
+    if (!polling && lastSeen && Date.now() - lastSeen > 30000) {
       setStatus(false);
       reconnectNow();
     }

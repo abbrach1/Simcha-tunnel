@@ -403,6 +403,9 @@
         body: JSON.stringify(params),
       });
       if (!res.ok) throw new Error('Request failed');
+      // In polling mode there's no push — refresh immediately so the tap
+      // feels instant instead of waiting for the next poll tick.
+      if (polling) pollNow();
       return true;
     } catch {
       toast('Could not reach the server — check the connection');
@@ -606,6 +609,41 @@
     $('conn-text').textContent = online ? 'Live' : 'Reconnecting…';
   }
 
+  // On serverless hosts (e.g. Vercel) there is no SSE endpoint; after a few
+  // quick SSE failures we fall back to polling GET /api/state instead.
+  const clientId = Math.random().toString(36).slice(2, 10);
+  let polling = false;
+  let pollTimer = null;
+  let sseFailures = 0;
+
+  async function pollNow() {
+    clearTimeout(pollTimer);
+    try {
+      const r = await fetch('/api/state?role=dashboard&id=' + clientId, { cache: 'no-store' });
+      if (!r.ok) throw new Error('poll failed');
+      state = await r.json();
+      render();
+      updateBackup();
+      lastSeen = Date.now();
+      setConn(true);
+    } catch {
+      setConn(false);
+    }
+    pollTimer = setTimeout(pollNow, 1500);
+  }
+
+  function startPolling() {
+    if (polling) return;
+    polling = true;
+    clearTimeout(retryTimer);
+    if (es) {
+      es.onerror = null;
+      es.onmessage = null;
+      try { es.close(); } catch { /* ignore */ }
+    }
+    pollNow();
+  }
+
   function connect() {
     clearTimeout(retryTimer);
     if (es) {
@@ -614,12 +652,16 @@
       try { es.close(); } catch { /* already closed */ }
     }
     es = new EventSource('/events?role=dashboard');
-    es.onopen = () => { retryDelay = 500; lastSeen = Date.now(); setConn(true); };
+    es.onopen = () => { retryDelay = 500; sseFailures = 0; lastSeen = Date.now(); setConn(true); };
     es.onmessage = (e) => { lastSeen = Date.now(); state = JSON.parse(e.data); render(); updateBackup(); };
     es.addEventListener('ping', () => { lastSeen = Date.now(); });
     es.onerror = () => {
       setConn(false);
       try { es.close(); } catch { /* ignore */ }
+      if (++sseFailures >= 3) {
+        startPolling();
+        return;
+      }
       clearTimeout(retryTimer);
       retryTimer = setTimeout(connect, retryDelay);
       retryDelay = Math.min(retryDelay * 2, 3000);
@@ -628,14 +670,19 @@
   connect();
 
   function reconnectNow() {
+    if (polling) {
+      pollNow();
+      return;
+    }
     retryDelay = 500;
     connect();
   }
 
   // The server pings every 10s; if nothing (data or ping) arrives for 30s
-  // the connection died without firing an error — rebuild it.
+  // the connection died without firing an error — rebuild it. (Polling mode
+  // has its own success/failure signal on every poll.)
   setInterval(() => {
-    if (lastSeen && Date.now() - lastSeen > 30000) {
+    if (!polling && lastSeen && Date.now() - lastSeen > 30000) {
       setConn(false);
       reconnectNow();
     }
