@@ -29,14 +29,16 @@
     touch-action: manipulation;
   }
 
+  body { display: flex; flex-direction: column; }
+
   #stage {
-    position: fixed;
-    inset: 0;
+    flex: 1;
+    min-height: 0;
     display: flex;
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    padding: max(4vmin, env(safe-area-inset-top)) 4vmin max(4vmin, env(safe-area-inset-bottom));
+    padding: max(4vmin, env(safe-area-inset-top)) 4vmin 4vmin;
     text-align: center;
     cursor: pointer;
   }
@@ -63,17 +65,35 @@
   }
 
   #upnext {
-    position: fixed;
-    left: 0; right: 0;
-    bottom: 0;
-    padding: 1.6vmin 4vmin max(1.6vmin, env(safe-area-inset-bottom));
-    text-align: center;
-    font-size: clamp(13px, 2.8vmin, 30px);
-    color: #999;
+    flex-shrink: 0;
+    max-height: 45vh;
+    overflow: hidden;
+    padding: 1.5vmin 5vmin max(1.5vmin, env(safe-area-inset-bottom));
     background: #111;
-    border-top: 1px solid #222;
+    border-top: 1px solid #2a2a2a;
   }
-  #upnext b { color: #fff; font-weight: 700; }
+  #upnext .un-title {
+    color: #888;
+    font-size: clamp(13px, 2.6vmin, 26px);
+    margin-bottom: .4vmin;
+  }
+  #upnext ol { list-style: none; }
+  #upnext li {
+    font-size: clamp(17px, 4vmin, 42px);
+    color: #ddd;
+    padding: .5vmin 0;
+    border-top: 1px solid #1e1e1e;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  #upnext li:first-child { border-top: none; color: #fff; font-weight: 700; }
+  #upnext li .num { color: #777; font-weight: 400; margin-right: .5em; }
+  #upnext .more {
+    color: #888;
+    font-size: clamp(13px, 2.8vmin, 28px);
+    padding-top: .5vmin;
+  }
   #upnext.hidden { display: none; }
 
   #status {
@@ -139,6 +159,10 @@
 
   let state = null;
 
+  const esc = (s) => s.replace(/[&<>"']/g, (c) => ({
+    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
+  }[c]));
+
   // ---- Text auto-fit: biggest font size that fits the stage ----------------
   function fitText() {
     const maxW = stage.clientWidth * 0.94;
@@ -169,10 +193,14 @@
     }
 
     if (state.showUpNext && state.queue.length > 0) {
-      const next = state.queue[0].name;
-      const more = state.queue.length - 1;
-      upnextEl.innerHTML = 'Up next: <b></b>' + (more > 0 ? ` &nbsp;·&nbsp; ${more} more waiting` : '');
-      upnextEl.querySelector('b').textContent = next;
+      // Portrait phones fit more rows than landscape ones.
+      const max = innerHeight > innerWidth ? 8 : 4;
+      const shown = state.queue.slice(0, max);
+      const more = state.queue.length - shown.length;
+      upnextEl.innerHTML = '<div class="un-title">Up next</div><ol>'
+        + shown.map((q, i) => `<li><span class="num">${i + 1}.</span>${esc(q.name)}</li>`).join('')
+        + '</ol>'
+        + (more > 0 ? `<div class="more">+ ${more} more</div>` : '');
       upnextEl.classList.remove('hidden');
     } else {
       upnextEl.classList.add('hidden');
@@ -260,7 +288,7 @@
   });
   setTimeout(() => hintEl.classList.add('faded'), 12000);
 
-  addEventListener('resize', fitText);
+  addEventListener('resize', () => (state ? render() : fitText()));
 })();
 </script>
 </body>

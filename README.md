@@ -25,8 +25,9 @@ Opening the root URL (`/`) shows a chooser so each phone can pick its role.
   display back to the welcome message between waves of arrivals.
 - **Announced history** with timestamps, and one-tap **Re-queue** if a name
   needs to be announced again.
-- **"Up next" strip** on the display (toggleable) so the announcer can prep
-  the next name.
+- **"Up next" list** on the display (toggleable): the upcoming names are shown
+  in medium-size text under the current one, so the announcer can see who's
+  coming without asking.
 - **Display settings**: customize the idle title and welcome message from the
   dashboard.
 - **Display screen count** on the dashboard — warns you if no stage phone is
