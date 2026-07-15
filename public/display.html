@@ -678,6 +678,7 @@
   // (iOS Safari kills SSE connections in the background).
   addEventListener('online', reconnectNow);
   addEventListener('pageshow', (e) => { if (e.persisted) reconnectNow(); });
+  addEventListener('focus', reconnectNow);
   document.addEventListener('visibilitychange', () => {
     if (document.visibilityState === 'visible') reconnectNow();
   });
