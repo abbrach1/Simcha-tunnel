@@ -644,7 +644,9 @@
 
   function setConn(online) {
     $('conn').classList.toggle('online', online);
-    $('conn-text').textContent = online ? 'Live' : 'Reconnecting…';
+    // Show the transport so a stale page can be diagnosed at a glance.
+    const mode = fbActive ? ' · Firebase' : (polling ? ' · polling' : '');
+    $('conn-text').textContent = online ? 'Live' + mode : 'Reconnecting…' + mode;
   }
 
   // On serverless hosts (e.g. Vercel) there is no SSE endpoint; after a few
@@ -667,7 +669,7 @@
     } catch {
       setConn(false);
     }
-    pollTimer = setTimeout(pollNow, 1500);
+    if (polling) pollTimer = setTimeout(pollNow, 1500);
   }
 
   function startPolling() {
@@ -708,6 +710,8 @@
   async function startFirebase() {
     if (fbActive) return;
     fbActive = true;
+    polling = false;            // leaving polling mode if we were in it
+    clearTimeout(pollTimer);
     lastSeen = Date.now();
     clearTimeout(retryTimer);
     if (es) {
@@ -723,7 +727,15 @@
       ]);
       // Unique app name so a rebuilt pipeline never collides with the old one.
       const app = appMod.initializeApp(window.FIREBASE_CONFIG, 'app-' + Date.now());
-      const db = fsMod.getFirestore(app);
+      // Force long-polling transport: filtered/proxied Wi-Fi (common at camp)
+      // silently kills Firestore's streaming channel — the page then loads
+      // fine but never receives pushes. Long-polling works everywhere.
+      let db;
+      try {
+        db = fsMod.initializeFirestore(app, { experimentalForceLongPolling: true, useFetchStreams: false });
+      } catch {
+        db = fsMod.getFirestore(app);
+      }
       const boardRef = fsMod.doc(db, 'boards', 'main');
       let counts = { displays: 0, dashboards: 0 };
       let latest = null;
@@ -812,11 +824,15 @@
         if (appMod.deleteApp) appMod.deleteApp(app).catch(() => {});
       };
     } catch {
-      // SDK failed to load — degrade to polling against /api.
+      // SDK failed to load (e.g. flaky network at page load) — poll /api for
+      // now, but KEEP retrying Firebase so we never settle on a dead /api.
       fbActive = false;
       fbApply = null;
       fbProbe = null;
       startPolling();
+      setTimeout(() => {
+        if (window.FIREBASE_CONFIG && !fbActive) startFirebase();
+      }, 8000);
     }
   }
 
